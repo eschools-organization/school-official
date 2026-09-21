@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useColor } from './ColorContext';
 import { IoMdClose } from 'react-icons/io';
+import { IoEyeOutline, IoEyeOffOutline } from 'react-icons/io5';
 
 interface LoginModalProps {
   open: boolean;
@@ -11,16 +12,13 @@ interface LoginModalProps {
 }
 
 const CloseIcon = IoMdClose as React.FC;
-
-// const roleLabels: Record<string, string> = {
-//   teacher: 'მასწავლებელი',
-//   student: 'მოსწავლე',
-//   admin: 'ადმინისტრატორი',
-// };
+const EyeIcon = IoEyeOutline as React.FC<{ size?: number | string }>;
+const EyeOffIcon = IoEyeOffOutline as React.FC<{ size?: number | string }>;
 
 const LoginModal: React.FC<LoginModalProps> = ({ open, onClose, onLogin, role }) => {
   const [user_ID, setUserID] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const { selectedColor } = useColor();
 
@@ -152,7 +150,29 @@ const LoginModal: React.FC<LoginModalProps> = ({ open, onClose, onLogin, role })
           </div>
           <div style={formGroupStyle}>
             <label style={labelStyle}>პაროლი:</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} style={inputStyle} />
+            <div style={{ position: 'relative', width: '100%' }}>
+              <input
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                style={{ ...inputStyle, paddingRight: '42px' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                  background: 'none', border: 'none', color: '#888', cursor: 'pointer',
+                  padding: 0, minHeight: 'auto', minWidth: 'auto', display: 'flex', alignItems: 'center'
+                }}
+              >
+                {showPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
+              </button>
+            </div>
           </div>
           {error && <div style={errorStyle}>{error}</div>}
           <div style={buttonContainerStyle}>

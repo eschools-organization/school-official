@@ -7,7 +7,10 @@ import ChatModule from "../../components/ChatModule";
 import { useQuery } from "@tanstack/react-query";
 import { GiTeacher } from "react-icons/gi";
 import { MdAdd, MdOutlineWarningAmber } from "react-icons/md";
-import { IoStatsChartSharp } from "react-icons/io5";
+import { IoStatsChartSharp, IoEyeOutline, IoEyeOffOutline } from "react-icons/io5";
+
+const EyeIcon = IoEyeOutline as React.FC<{ size?: number | string }>;
+const EyeOffIcon = IoEyeOffOutline as React.FC<{ size?: number | string }>;
 import { IconType } from "react-icons";
 import { useColor } from "./../../components/ColorContext";
 import ColorPalette from "./../../components/ColorPalette";
@@ -262,6 +265,9 @@ const Teacher: React.FC = () => {
   const [passError, setPassError] = useState('');
   const [passSuccess, setPassSuccess] = useState('');
   const [passLoading, setPassLoading] = useState(false);
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -626,36 +632,87 @@ const Teacher: React.FC = () => {
                 
                 <div>
                   <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px', display: 'block', marginBottom: '6px', fontWeight: 600 }}>მიმდინარე პაროლი</label>
-                  <input
-                    type="password"
-                    value={oldPassword}
-                    onChange={(e) => setOldPassword(e.target.value)}
-                    className="admin-input"
-                    style={{ width: '100%' }}
-                    placeholder="••••••••"
-                  />
+                  <div style={{ position: 'relative', width: '100%' }}>
+                    <input
+                      type={showOldPassword ? "text" : "password"}
+                      autoComplete="current-password"
+                      autoCorrect="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      value={oldPassword}
+                      onChange={(e) => setOldPassword(e.target.value)}
+                      className="admin-input"
+                      style={{ width: '100%', paddingRight: '42px', boxSizing: 'border-box' }}
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowOldPassword(!showOldPassword)}
+                      style={{
+                        position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                        background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer',
+                        padding: 0, minHeight: 'auto', minWidth: 'auto', display: 'flex', alignItems: 'center'
+                      }}
+                    >
+                      {showOldPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px', display: 'block', marginBottom: '6px', fontWeight: 600 }}>ახალი პაროლი</label>
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="admin-input"
-                    style={{ width: '100%' }}
-                    placeholder="••••••••"
-                  />
+                  <div style={{ position: 'relative', width: '100%' }}>
+                    <input
+                      type={showNewPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      autoCorrect="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="admin-input"
+                      style={{ width: '100%', paddingRight: '42px', boxSizing: 'border-box' }}
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      style={{
+                        position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                        background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer',
+                        padding: 0, minHeight: 'auto', minWidth: 'auto', display: 'flex', alignItems: 'center'
+                      }}
+                    >
+                      {showNewPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px', display: 'block', marginBottom: '6px', fontWeight: 600 }}>დაადასტურეთ ახალი პაროლი</label>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="admin-input"
-                    style={{ width: '100%' }}
-                    placeholder="••••••••"
-                  />
+                  <div style={{ position: 'relative', width: '100%' }}>
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      autoCorrect="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="admin-input"
+                      style={{ width: '100%', paddingRight: '42px', boxSizing: 'border-box' }}
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      style={{
+                        position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                        background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer',
+                        padding: 0, minHeight: 'auto', minWidth: 'auto', display: 'flex', alignItems: 'center'
+                      }}
+                    >
+                      {showConfirmPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
+                    </button>
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
                   <button type="submit" className="admin-submit-btn" disabled={passLoading} style={{ flex: 1 }}>

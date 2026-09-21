@@ -135,14 +135,50 @@ const Admin: React.FC = () => {
     const [updatingTeacherId, setUpdatingTeacherId] = useState<string | null>(null);
     const [customDates, setCustomDates] = useState<{ [teacherId: string]: string }>({});
     const [isJournalModalOpen, setIsJournalModalOpen] = useState(false);
-    const [selectedClassForHistory, setSelectedClassForHistory] = useState<{ id: string; name: string } | null>(null);
-    const [selectedSubjectForHistory, setSelectedSubjectForHistory] = useState<{ id: string; name: string } | null>(null);
+    const [selectedClassForHistory, setSelectedClassForHistory] = useState<{ id: string; name: string } | null>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('admin_selected_class_history');
+            if (saved) {
+                try { return JSON.parse(saved); } catch (e) {}
+            }
+        }
+        return null;
+    });
+    const [selectedSubjectForHistory, setSelectedSubjectForHistory] = useState<{ id: string; name: string } | null>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('admin_selected_subject_history');
+            if (saved) {
+                try { return JSON.parse(saved); } catch (e) {}
+            }
+        }
+        return null;
+    });
     const [selectedClassForExternals, setSelectedClassForExternals] = useState<{ id: string; name: string } | null>(null);
     const [selectedClassForReport, setSelectedClassForReport] = useState<{ id: string; name: string } | null>(null);
     const [showReportGenerator, setShowReportGenerator] = useState(false);
     const [selectedStudentForCard, setSelectedStudentForCard] = useState<Student | null>(null);
     const [selectedHistoryYear, setSelectedHistoryYear] = useState<string>('');
     const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            if (selectedClassForHistory) {
+                localStorage.setItem('admin_selected_class_history', JSON.stringify(selectedClassForHistory));
+            } else {
+                localStorage.removeItem('admin_selected_class_history');
+            }
+        }
+    }, [selectedClassForHistory]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            if (selectedSubjectForHistory) {
+                localStorage.setItem('admin_selected_subject_history', JSON.stringify(selectedSubjectForHistory));
+            } else {
+                localStorage.removeItem('admin_selected_subject_history');
+            }
+        }
+    }, [selectedSubjectForHistory]);
 
     const getPromotionAcademicYear = (date = new Date()) => {
         const year = date.getFullYear();
@@ -2001,7 +2037,21 @@ const Admin: React.FC = () => {
                         selectedYear={selectedHistoryYear}
                     />
                 ) : (
-                    <div style={{ color: 'white', textAlign: 'center' }}>კლასი ვერ მოიძებნა</div>
+                    <div style={{ color: 'white', textAlign: 'center', padding: '40px 20px', background: 'rgba(26, 43, 85, 0.75)', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)', maxWidth: '500px', margin: '40px auto' }}>
+                        <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '12px' }}>კლასი არ არის არჩეული</h3>
+                        <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', marginBottom: '24px' }}>გთხოვთ აირჩიოთ კლასი სიიდან</p>
+                        <button
+                            type="button"
+                            className="admin-back-btn"
+                            onClick={() => {
+                                localStorage.removeItem('admin_selected_class_history');
+                                setView('classHistoryGrades');
+                            }}
+                            style={{ margin: '0 auto', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                        >
+                            <ArrowLeftIcon size={18} /> მთავარ გვერდზე დაბრუნება
+                        </button>
+                    </div>
                 );
             case 'detailedGradeHistory':
                 return selectedClassForHistory ? (
@@ -2016,7 +2066,21 @@ const Admin: React.FC = () => {
                         selectedYear={selectedHistoryYear}
                     />
                 ) : (
-                    <div style={{ color: 'white', textAlign: 'center' }}>კლასი ვერ მოიძებნა</div>
+                    <div style={{ color: 'white', textAlign: 'center', padding: '40px 20px', background: 'rgba(26, 43, 85, 0.75)', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)', maxWidth: '500px', margin: '40px auto' }}>
+                        <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '12px' }}>კლასი არ არის არჩეული</h3>
+                        <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', marginBottom: '24px' }}>გთხოვთ აირჩიოთ კლასი სიიდან</p>
+                        <button
+                            type="button"
+                            className="admin-back-btn"
+                            onClick={() => {
+                                localStorage.removeItem('admin_selected_class_history');
+                                setView('classHistoryGrades');
+                            }}
+                            style={{ margin: '0 auto', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                        >
+                            <ArrowLeftIcon size={18} /> მთავარ გვერდზე დაბრუნება
+                        </button>
+                    </div>
                 );
             case 'dayScan':
                 return <DayScanPage />;

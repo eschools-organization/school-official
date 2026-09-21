@@ -1,10 +1,12 @@
 "use client";
 import React, { useState } from 'react';
-import { IoClose, IoKeyOutline, IoLockClosedOutline } from 'react-icons/io5';
+import { IoClose, IoKeyOutline, IoLockClosedOutline, IoEyeOutline, IoEyeOffOutline } from 'react-icons/io5';
 
 const CloseIcon = IoClose as React.FC<{ size?: number | string }>;
 const KeyIcon = IoKeyOutline as React.FC<{ size?: number | string }>;
 const LockIcon = IoLockClosedOutline as React.FC<{ size?: number | string }>;
+const EyeIcon = IoEyeOutline as React.FC<{ size?: number | string }>;
+const EyeOffIcon = IoEyeOffOutline as React.FC<{ size?: number | string }>;
 
 interface AdminChangePasswordModalProps {
     isOpen: boolean;
@@ -27,6 +29,10 @@ const AdminChangePasswordModal: React.FC<AdminChangePasswordModalProps> = ({
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
+
+    const [showOldPassword, setShowOldPassword] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     if (!isOpen) return null;
 
@@ -105,6 +111,7 @@ const AdminChangePasswordModal: React.FC<AdminChangePasswordModalProps> = ({
             }}>
                 {/* Close Button */}
                 <button
+                    type="button"
                     onClick={onClose}
                     style={{
                         position: 'absolute',
@@ -154,72 +161,156 @@ const AdminChangePasswordModal: React.FC<AdminChangePasswordModalProps> = ({
                         <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: 'rgba(255, 255, 255, 0.8)' }}>
                             ძველი პაროლი
                         </label>
-                        <input
-                            type="password"
-                            required
-                            placeholder="••••••••"
-                            value={oldPassword}
-                            onChange={(e) => setOldPassword(e.target.value)}
-                            style={{
-                                width: '100%',
-                                padding: '12px 16px',
-                                borderRadius: '12px',
-                                background: 'rgba(255, 255, 255, 0.05)',
-                                border: '1px solid rgba(255, 255, 255, 0.15)',
-                                color: 'white',
-                                fontSize: '15px',
-                                outline: 'none',
-                                boxSizing: 'border-box'
-                            }}
-                        />
+                        <div style={{ position: 'relative', width: '100%' }}>
+                            <input
+                                type={showOldPassword ? "text" : "password"}
+                                required
+                                autoComplete="current-password"
+                                autoCorrect="off"
+                                autoCapitalize="none"
+                                spellCheck={false}
+                                placeholder="••••••••"
+                                value={oldPassword}
+                                onChange={(e) => setOldPassword(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '12px 42px 12px 16px',
+                                    borderRadius: '12px',
+                                    background: 'rgba(255, 255, 255, 0.05)',
+                                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                                    color: 'white',
+                                    fontSize: '15px',
+                                    outline: 'none',
+                                    boxSizing: 'border-box'
+                                }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowOldPassword(!showOldPassword)}
+                                style={{
+                                    position: 'absolute',
+                                    right: '12px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'rgba(255, 255, 255, 0.6)',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: 0,
+                                    minHeight: 'auto',
+                                    minWidth: 'auto'
+                                }}
+                            >
+                                {showOldPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
+                            </button>
+                        </div>
                     </div>
 
                     <div>
                         <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: 'rgba(255, 255, 255, 0.8)' }}>
                             ახალი პაროლი
                         </label>
-                        <input
-                            type="password"
-                            required
-                            placeholder="••••••••"
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                            style={{
-                                width: '100%',
-                                padding: '12px 16px',
-                                borderRadius: '12px',
-                                background: 'rgba(255, 255, 255, 0.05)',
-                                border: '1px solid rgba(255, 255, 255, 0.15)',
-                                color: 'white',
-                                fontSize: '15px',
-                                outline: 'none',
-                                boxSizing: 'border-box'
-                            }}
-                        />
+                        <div style={{ position: 'relative', width: '100%' }}>
+                            <input
+                                type={showNewPassword ? "text" : "password"}
+                                required
+                                autoComplete="new-password"
+                                autoCorrect="off"
+                                autoCapitalize="none"
+                                spellCheck={false}
+                                placeholder="••••••••"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '12px 42px 12px 16px',
+                                    borderRadius: '12px',
+                                    background: 'rgba(255, 255, 255, 0.05)',
+                                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                                    color: 'white',
+                                    fontSize: '15px',
+                                    outline: 'none',
+                                    boxSizing: 'border-box'
+                                }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowNewPassword(!showNewPassword)}
+                                style={{
+                                    position: 'absolute',
+                                    right: '12px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'rgba(255, 255, 255, 0.6)',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: 0,
+                                    minHeight: 'auto',
+                                    minWidth: 'auto'
+                                }}
+                            >
+                                {showNewPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
+                            </button>
+                        </div>
                     </div>
 
                     <div>
                         <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: 'rgba(255, 255, 255, 0.8)' }}>
                             გაიმეორეთ ახალი პაროლი
                         </label>
-                        <input
-                            type="password"
-                            required
-                            placeholder="••••••••"
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            style={{
-                                width: '100%',
-                                padding: '12px 16px',
-                                borderRadius: '12px',
-                                background: 'rgba(255, 255, 255, 0.05)',
-                                border: '1px solid rgba(255, 255, 255, 0.15)',
-                                color: 'white',
-                                fontSize: '15px',
-                                outline: 'none',
-                                boxSizing: 'border-box'
-                            }}
-                        />
+                        <div style={{ position: 'relative', width: '100%' }}>
+                            <input
+                                type={showConfirmPassword ? "text" : "password"}
+                                required
+                                autoComplete="new-password"
+                                autoCorrect="off"
+                                autoCapitalize="none"
+                                spellCheck={false}
+                                placeholder="••••••••"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '12px 42px 12px 16px',
+                                    borderRadius: '12px',
+                                    background: 'rgba(255, 255, 255, 0.05)',
+                                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                                    color: 'white',
+                                    fontSize: '15px',
+                                    outline: 'none',
+                                    boxSizing: 'border-box'
+                                }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                style={{
+                                    position: 'absolute',
+                                    right: '12px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'rgba(255, 255, 255, 0.6)',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: 0,
+                                    minHeight: 'auto',
+                                    minWidth: 'auto'
+                                }}
+                            >
+                                {showConfirmPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
+                            </button>
+                        </div>
                     </div>
 
                     <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
