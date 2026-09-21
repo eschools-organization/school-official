@@ -50,7 +50,7 @@ const TeacherList: React.FC<TeacherListProps> = ({
 
         const parts = query.split(/\s+/);
         return parts.every(part => name.includes(part) || surname.includes(part) || id.includes(part));
-    });
+    }).sort((a, b) => `${a.name || ''} ${a.surname || ''}`.localeCompare(`${b.name || ''} ${b.surname || ''}`, 'ka'));
 
     return (
         <div className="admin-view-container animate-fade-in-down">

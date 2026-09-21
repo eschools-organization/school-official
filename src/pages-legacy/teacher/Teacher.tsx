@@ -39,7 +39,11 @@ const TutorClassDetails: React.FC<{
   onViewAllGrades?: () => void;
 }> = ({ allSubjects, allTeachers, tutorClass, selectedColor, onSelectSubject, onViewAllGrades }) => {
   if (!tutorClass) return null;
-  const subjectsList = tutorClass.subjects || [];
+  const subjectsList = [...(tutorClass.subjects || [])].sort((a: any, b: any) => {
+    const subjA = allSubjects.find((s: any) => s._id === a.subject_id)?.name || "";
+    const subjB = allSubjects.find((s: any) => s._id === b.subject_id)?.name || "";
+    return subjA.localeCompare(subjB, "ka");
+  });
   return (
     <div className="admin-list-container" style={{ padding: '28px', width: '100%', background: '#ffffff', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 8px 25px rgba(0,0,0,0.04)' }}>
       <div style={{
@@ -311,6 +315,9 @@ const Teacher: React.FC = () => {
       const tRes = await fetch("/api/teacher/all");
       if (!tRes.ok) return;
       const teachers = await tRes.json();
+      if (Array.isArray(teachers)) {
+        teachers.sort((a: any, b: any) => `${a.name || ''} ${a.surname || ''}`.localeCompare(`${b.name || ''} ${b.surname || ''}`, 'ka'));
+      }
       setAllTeachers(teachers);
       const teacher = teachers.find((t: any) => t.user_ID === user_ID);
       if (!teacher) return;
@@ -319,6 +326,9 @@ const Teacher: React.FC = () => {
       const subjRes = await fetch("/api/subjects");
       if (!subjRes.ok) return;
       const subjects = await subjRes.json();
+      if (Array.isArray(subjects)) {
+        subjects.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '', 'ka'));
+      }
       setAllSubjects(subjects);
       // Tutor classes
       const tutor = allClasses.filter((cls: any) => cls.damrigebeli === teacherId);
@@ -806,9 +816,10 @@ const Teacher: React.FC = () => {
         const res = await fetch(studentsUrl);
         if (!res.ok) return;
         const fetched = await res.json();
-        const classStudents = match
+        const classStudents = (match
           ? fetched
-          : fetched.filter((s: any) => s.classInfo && s.classInfo._id === id);
+          : fetched.filter((s: any) => s.classInfo && s.classInfo._id === id))
+          .sort((a: any, b: any) => `${a.name || ''} ${a.surname || ''}`.localeCompare(`${b.name || ''} ${b.surname || ''}`, 'ka'));
         setStudents(classStudents);
         // Initialize grades state
         const initialGrades: {

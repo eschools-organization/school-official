@@ -145,13 +145,15 @@ const ChatModule: React.FC<ChatModuleProps> = ({ currentUser }) => {
     });
   }, [allMessages, currentUser.id]);
 
-  // Filter available contacts based on search query
+  // Filter available contacts based on search query & sort alphabetically
   const filteredContacts = React.useMemo(() => {
     if (!availableContacts) return [];
-    return availableContacts.filter(c =>
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.id.includes(searchQuery)
-    );
+    return availableContacts
+      .filter(c =>
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.id.includes(searchQuery)
+      )
+      .sort((a, b) => a.name.localeCompare(b.name, 'ka'));
   }, [availableContacts, searchQuery]);
 
   return (

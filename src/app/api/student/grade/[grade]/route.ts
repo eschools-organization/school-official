@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
+import { getCachedOrFetch } from "@/lib/cache";
 
 export async function GET(
   req: NextRequest,
@@ -12,49 +13,53 @@ export async function GET(
   }
 
   const parallel = req.nextUrl.searchParams.get("parallel");
-  const classnameRegex = parallel
-    ? `^${grade}[\\s\\-_]*${parallel}$`
-    : `^${grade}`;
+  const cacheKey = `student_grade_${grade}_${parallel || "all"}`;
 
-  const db = await getDb();
+  const results = await getCachedOrFetch(cacheKey, 60000, async () => {
+    const classnameRegex = parallel
+      ? `^${grade}[\\s\\-_]*${parallel}$`
+      : `^${grade}`;
 
-  // 1. Fetch matching classes first (checks both ID and classname fields in MongoDB)
-  const classes = await db.collection("class")
-    .find({
-      $or: [
-        { ID: { $regex: classnameRegex, $options: "i" } },
-        { classname: { $regex: classnameRegex, $options: "i" } }
-      ]
-    })
-    .toArray();
-  const classIds = classes.flatMap(c => [c._id, c._id.toString()]);
+    const db = await getDb();
 
-  // 2. Query students belonging to these class IDs (handles both ObjectId and string representation)
-  const students = await db.collection("students")
-    .find({ class_id: { $in: classIds } }, { projection: { password: 0, points: 0 } })
-    .toArray();
+    // 1. Fetch matching classes first (checks both ID and classname fields in MongoDB)
+    const classes = await db.collection("class")
+      .find({
+        $or: [
+          { ID: { $regex: classnameRegex, $options: "i" } },
+          { classname: { $regex: classnameRegex, $options: "i" } }
+        ]
+      })
+      .toArray();
+    const classIds = classes.flatMap(c => [c._id, c._id.toString()]);
 
-  // 3. Attach classInfo in JS memory
-  const classMap = new Map(classes.map(c => [c._id.toString(), c]));
-  const results = students.map(student => {
-    const cidStr = student.class_id ? student.class_id.toString() : null;
-    const cObj = cidStr ? classMap.get(cidStr) : null;
-    const classNameStr = cObj ? (cObj.ID || cObj.classname || "") : "";
-    return {
-      ...student,
-      _id: student._id.toString(),
-      ID: student.ID || student.user_ID || "",
-      user_ID: student.user_ID || student.ID || "",
-      role: student.role || "student",
-      image: student.image || "",
-      class_id: cidStr,
-      classInfo: cObj ? {
-        ...cObj,
-        _id: cObj._id.toString(),
-        ID: classNameStr,
-        classname: classNameStr
-      } : null
-    };
+    // 2. Query students belonging to these class IDs (handles both ObjectId and string representation)
+    const students = await db.collection("students")
+      .find({ class_id: { $in: classIds } }, { projection: { password: 0, points: 0 } })
+      .toArray();
+
+    // 3. Attach classInfo in JS memory
+    const classMap = new Map(classes.map(c => [c._id.toString(), c]));
+    return students.map(student => {
+      const cidStr = student.class_id ? student.class_id.toString() : null;
+      const cObj = cidStr ? classMap.get(cidStr) : null;
+      const classNameStr = cObj ? (cObj.ID || cObj.classname || "") : "";
+      return {
+        ...student,
+        _id: student._id.toString(),
+        ID: student.ID || student.user_ID || "",
+        user_ID: student.user_ID || student.ID || "",
+        role: student.role || "student",
+        image: student.image || "",
+        class_id: cidStr,
+        classInfo: cObj ? {
+          ...cObj,
+          _id: cObj._id.toString(),
+          ID: classNameStr,
+          classname: classNameStr
+        } : null
+      };
+    });
   });
 
   return NextResponse.json(results);

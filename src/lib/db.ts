@@ -185,7 +185,7 @@ export async function findGrades(
 
   // If no specific collection specified, query ALL grade collections in parallel
   const collectionNames = await getGradesCollectionNames(db);
-  await Promise.all(collectionNames.map((name) => ensureIndexes(db, name).catch(() => {})));
+  collectionNames.forEach((name) => ensureIndexes(db, name).catch(() => {}));
 
   const resultsArr = await Promise.all(
     collectionNames.map((name) => db.collection(name).find(queryFilter).sort({ date: 1 }).toArray())
@@ -204,25 +204,33 @@ export async function findGrades(
 }
 
 const indexedCollections = new Set<string>();
+let globalIndexesCreated = false;
 
 export async function ensureIndexes(db: any, collectionName: string) {
   if (indexedCollections.has(collectionName)) return;
+  indexedCollections.add(collectionName);
 
   try {
-    // Idempotent compound index creation for maximum query speed
-    await Promise.all([
+    const indexPromises: Promise<any>[] = [
       db.collection(collectionName).createIndex({ class_id: 1, date: 1 }),
       db.collection(collectionName).createIndex({ class_id: 1, student_id: 1 }),
       db.collection(collectionName).createIndex({ student_id: 1, class_id: 1, date: 1 }),
       db.collection(collectionName).createIndex({ student_id: 1, class_id: 1, subject_id: 1, date: 1, lesson_num: 1 }),
       db.collection(collectionName).createIndex({ class_id: 1, subject_id: 1, date: 1 }),
       db.collection(collectionName).createIndex({ student_id: 1, date: 1 }),
-      db.collection("students").createIndex({ user_ID: 1 }, { sparse: true }),
-      db.collection("teachers").createIndex({ user_ID: 1 }, { sparse: true }),
-      db.collection("assignments").createIndex({ class_id: 1, teacher_id: 1 }),
-      db.collection("assignment_submissions").createIndex({ assignment_id: 1, student_id: 1 }),
-    ]);
-    indexedCollections.add(collectionName);
+    ];
+
+    if (!globalIndexesCreated) {
+      globalIndexesCreated = true;
+      indexPromises.push(
+        db.collection("students").createIndex({ user_ID: 1 }, { sparse: true }),
+        db.collection("teachers").createIndex({ user_ID: 1 }, { sparse: true }),
+        db.collection("assignments").createIndex({ class_id: 1, teacher_id: 1 }),
+        db.collection("assignment_submissions").createIndex({ assignment_id: 1, student_id: 1 })
+      );
+    }
+
+    await Promise.all(indexPromises);
   } catch (err) {
     console.error("Auto index creation failed:", err);
   }

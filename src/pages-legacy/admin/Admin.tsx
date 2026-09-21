@@ -175,6 +175,9 @@ const Admin: React.FC = () => {
             const res = await fetch('/api/subjects');
             if (res.ok) {
                 const data = await res.json();
+                if (Array.isArray(data)) {
+                    data.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '', 'ka'));
+                }
                 setSubjects(data);
             } else {
                 console.error('Failed to fetch subjects.');
@@ -584,6 +587,9 @@ const Admin: React.FC = () => {
             const res = await fetch('/api/admin/all');
             if (res.ok) {
                 const data = await res.json();
+                if (Array.isArray(data)) {
+                    data.sort((a: any, b: any) => `${a.name || ''} ${a.surname || ''}`.localeCompare(`${b.name || ''} ${b.surname || ''}`, 'ka'));
+                }
                 setAdminsList(data);
             } else {
                 showPopup('ადმინისტრატორების სიის ჩატვირთვა ვერ მოხერხდა.', 'error');
@@ -972,6 +978,9 @@ const Admin: React.FC = () => {
             const res = await fetch(url);
             if (res.ok) {
                 const data = await res.json();
+                if (Array.isArray(data)) {
+                    data.sort((a: any, b: any) => `${a.name || ''} ${a.surname || ''}`.localeCompare(`${b.name || ''} ${b.surname || ''}`, 'ka'));
+                }
                 setStudents(data);
             } else {
                 showPopup('მოსწავლეების სიის ჩატვირთვა ვერ მოხერხდა.', 'error');
@@ -986,6 +995,9 @@ const Admin: React.FC = () => {
             const res = await fetch('/api/teacher/all');
             if (res.ok) {
                 const data = await res.json();
+                if (Array.isArray(data)) {
+                    data.sort((a: any, b: any) => `${a.name || ''} ${a.surname || ''}`.localeCompare(`${b.name || ''} ${b.surname || ''}`, 'ka'));
+                }
                 setTeachers(data);
             } else {
                 showPopup('მასწავლებლების სიის ჩატვირთვა ვერ მოხერხდა.', 'error');

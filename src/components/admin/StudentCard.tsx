@@ -149,7 +149,9 @@ const StudentCard: React.FC<StudentCardProps> = ({
     const isPreschool = activeTabObj.className === 'სკოლამდელი';
 
     const overall = activeYearData?.overall || { first_semester_average: 0, second_semester_average: 0, annual_average: 0 };
-    const subjectsList = activeYearData?.subjects || [];
+    const subjectsList = [...(activeYearData?.subjects || [])].sort((a: any, b: any) =>
+        (a.name || '').localeCompare(b.name || '', 'ka')
+    );
 
     return (
         <div className="admin-view-container animate-fade-in-down" style={{ maxWidth: '1100px', margin: '0 auto' }}>

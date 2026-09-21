@@ -115,7 +115,7 @@ const StudentList: React.FC<StudentListProps> = ({
         })
         : studentsInGrade;
 
-    // Apply manual search filter
+    // Apply manual search filter & sort alphabetically
     const finalFilteredStudents = filteredStudents.filter(student => {
         const query = searchQuery.toLowerCase().trim();
         if (!query) return true;
@@ -125,7 +125,7 @@ const StudentList: React.FC<StudentListProps> = ({
         const id = (student.ID || student.user_ID || '').toLowerCase();
         const classNameStr = getClassNameStr(student.classInfo).toLowerCase();
         return fullName.includes(query) || name.includes(query) || surname.includes(query) || id.includes(query) || classNameStr.includes(query);
-    });
+    }).sort((a, b) => `${a.name || ''} ${a.surname || ''}`.localeCompare(`${b.name || ''} ${b.surname || ''}`, 'ka'));
 
     // Build unique list of numeric grades present in classes, with default 1..12 fallback
     const parsedGrades = Array.from(new Set(

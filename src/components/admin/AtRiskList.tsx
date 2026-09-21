@@ -70,7 +70,9 @@ const AtRiskList: React.FC<AtRiskListProps> = ({ classId, className }) => {
 
   const studentsInClass = React.useMemo(() => {
     if (!allStudents) return [];
-    return allStudents.filter(s => s.classInfo?._id === classId);
+    return allStudents
+      .filter(s => s.classInfo?._id === classId)
+      .sort((a, b) => `${a.name || ''} ${a.surname || ''}`.localeCompare(`${b.name || ''} ${b.surname || ''}`, 'ka'));
   }, [allStudents, classId]);
 
   // 2. Fetch class statistics

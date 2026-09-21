@@ -227,12 +227,13 @@ const SubjectList: React.FC<SubjectListProps> = ({
     if (loading) return <div style={{ color: 'white', textAlign: 'center', marginTop: '40px' }}>იტვირთება...</div>;
     if (!classData) return <div style={{ color: 'white', textAlign: 'center', marginTop: '40px' }}>კლასი ვერ მოიძებნა</div>;
 
-    const subjectCards = classData.subjects?.map(cs => {
+    const subjectCards = (classData.subjects?.map(cs => {
         const subject = subjects.find(s => s._id === cs.subject_id);
         const teacher = teachers.find(t => t._id === cs.teacher_id);
         if (!subject || !teacher) return null;
         return { subjectId: subject._id, subjectName: subject.name, teacherName: `${teacher.name} ${teacher.surname}` };
-    }).filter((c): c is NonNullable<typeof c> => c !== null) || [];
+    }).filter((c): c is NonNullable<typeof c> => c !== null) || [])
+    .sort((a, b) => a.subjectName.localeCompare(b.subjectName, 'ka'));
 
     return (
         <div className="admin-view-container animate-fade-in-down">

@@ -1,14 +1,29 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useColor, THEME_PRESETS } from './ColorContext';
 import { IoColorPaletteOutline } from 'react-icons/io5';
 
 const ColorPalette: React.FC = () => {
     const { currentTheme, setThemeById } = useColor();
     const [isOpen, setIsOpen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        if (isOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isOpen]);
 
     return (
-        <div style={{ position: 'relative', display: 'inline-block' }}>
+        <div ref={containerRef} style={{ position: 'relative', display: 'inline-block' }}>
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
@@ -37,16 +52,16 @@ const ColorPalette: React.FC = () => {
                 <div style={{
                     position: 'absolute',
                     top: '45px',
-                    right: 0,
+                    left: 0,
                     background: '#ffffff',
-                    border: '1px solid #e2e8f0',
+                    border: '1px solid #cbd5e1',
                     borderRadius: '16px',
-                    padding: '12px',
-                    boxShadow: '0 15px 35px rgba(0,0,0,0.2)',
+                    padding: '14px',
+                    boxShadow: '0 15px 35px rgba(0,0,0,0.25)',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '8px',
-                    minWidth: '210px',
+                    minWidth: '220px',
                     color: '#0f172a',
                     zIndex: 999999
                 }}>

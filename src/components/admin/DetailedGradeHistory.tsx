@@ -156,6 +156,10 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
     const [expandedMobileStudentId, setExpandedMobileStudentId] = useState<string | null>(null);
     const [mobileViewMode, setMobileViewMode] = useState<'cards' | 'matrix'>('matrix');
 
+    const sortedStudents = React.useMemo(() => {
+        return [...students].sort((a, b) => `${a.name || ''} ${a.surname || ''}`.localeCompare(`${b.name || ''} ${b.surname || ''}`, 'ka'));
+    }, [students]);
+
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [selectedCell, setSelectedCell] = useState<{
         student: Student;
@@ -312,7 +316,11 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                     }
                 }
 
+                classStudents.sort((a: any, b: any) => `${a.name || ''} ${a.surname || ''}`.localeCompare(`${b.name || ''} ${b.surname || ''}`, 'ka'));
                 setStudents(classStudents);
+                if (Array.isArray(subjectsData)) {
+                    subjectsData.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '', 'ka'));
+                }
                 setSubjects(subjectsData);
                 setLoading(false);
             } catch (error) {
@@ -577,9 +585,10 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
         return '✓';
     };
 
+
     const filteredStudents = mobileSearchQuery.trim()
-        ? students.filter(s => `${s.name} ${s.surname}`.toLowerCase().includes(mobileSearchQuery.toLowerCase()))
-        : students;
+        ? sortedStudents.filter(s => `${s.name} ${s.surname}`.toLowerCase().includes(mobileSearchQuery.toLowerCase()))
+        : sortedStudents;
 
     const currentSubjectObj = subjects.find(s => s._id === selectedSubject);
     const displaySubjectTitle = subjectName || (selectedSubject !== 'all' ? currentSubjectObj?.name : 'ყველა საგანი');
