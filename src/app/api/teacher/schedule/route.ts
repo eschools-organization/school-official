@@ -111,7 +111,21 @@ export async function GET(req: NextRequest) {
           }
 
           if (matches) {
-            const subjName = entry.subject_id ? subjectMap[entry.subject_id.toString()] || "" : "";
+            let subjName = entry.subject_id ? subjectMap[entry.subject_id.toString()] || "" : "";
+            
+            // Fallback: if entry.subject_id was missing or unmapped, resolve subject from classSubjects ONLY if teacher teaches exactly 1 subject in this class
+            if (!subjName && classSubjects.length > 0) {
+              const teacherClassSubjs = classSubjects.filter((s: any) =>
+                s.teacher_id && (
+                  teacherUserIDs.includes(s.teacher_id.toString()) ||
+                  (teacherObjID && s.teacher_id.toString() === teacherObjID.toString())
+                ) && (s.hours_per_week === undefined || s.hours_per_week > 0)
+              );
+              if (teacherClassSubjs.length === 1 && teacherClassSubjs[0].subject_id) {
+                subjName = subjectMap[teacherClassSubjs[0].subject_id.toString()] || "";
+              }
+            }
+
             schedule[day][lesson] = {
               className: cls.classname || cls.ID || "",
               subjectName: subjName,

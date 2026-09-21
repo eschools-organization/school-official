@@ -259,11 +259,12 @@ const DailyTimeline: React.FC<DailyTimelineProps> = ({ classId }) => {
           boxShadow: '0 4px 20px rgba(56, 189, 248, 0.1)'
         }}>
           <div>
-            <div style={{ fontWeight: 800, fontSize: '16px', marginBottom: '2px' }}>
-              აღდგენის დღე: {currentEvent.title}
+            <div style={{ fontWeight: 800, fontSize: '16px', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>📌 საუბარია შაბათზე ({currentEvent.date}):</span>
+              <span>აღდგენის დღე ({currentEvent.title})</span>
             </div>
             <div style={{ fontSize: '14px', opacity: 0.9 }}>
-              გაკვეთილები ჩატარდება <strong>{daysGeorgian[currentEvent.replacementDayOfWeek ?? 0]}ს</strong> ცხრილით.
+              ტარდება აღდგენითი სწავლა — აღადგენს <strong>{daysGeorgian[currentEvent.replacementDayOfWeek ?? 0]}ს</strong> გაკვეთილებს.
             </div>
           </div>
         </div>
@@ -428,6 +429,68 @@ const DailyTimeline: React.FC<DailyTimelineProps> = ({ classId }) => {
           )}
         </div>
       )}
+
+      {/* List of Holidays and Makeup Days AT THE BOTTOM */}
+      <div style={{
+        marginTop: '32px',
+        padding: '20px',
+        background: '#ffffff',
+        borderRadius: '16px',
+        border: '1px solid #e2e8f0',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.04)'
+      }}>
+        <h4 style={{ margin: '0 0 12px 0', fontSize: '15px', fontWeight: 900, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>📅</span> დასვენების და აღდგენის დღეების სია
+        </h4>
+
+        {calendarEvents && calendarEvents.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {calendarEvents.map((evt) => (
+              <div
+                key={evt._id || evt.date}
+                style={{
+                  backgroundColor: evt.type === 'holiday' ? '#fef2f2' : '#f0f9ff',
+                  border: evt.type === 'holiday' ? '1px solid #fecaca' : '1px solid #bae6fd',
+                  borderRadius: '10px',
+                  padding: '10px 14px',
+                  color: evt.type === 'holiday' ? '#991b1b' : '#0369a1',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '8px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    background: evt.type === 'holiday' ? '#ef4444' : '#0284c7',
+                    color: '#ffffff'
+                  }}>
+                    {evt.type === 'holiday' ? '🔴 დასვენება' : '🔵 აღდგენა'}
+                  </span>
+                  <strong>{evt.date}</strong> — <span>{evt.title}</span>
+                </div>
+
+                {evt.type === 'makeup' && evt.replacementDayOfWeek !== undefined && (
+                  <span style={{ fontSize: '12px', color: '#0284c7', fontWeight: 800 }}>
+                    📌 საუბარია შაბათზე ({evt.date}) — აღადგენს {daysGeorgian[evt.replacementDayOfWeek]}ს გაკვეთილებს
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ fontSize: '13px', color: '#64748b' }}>
+            დასვენების ან აღდგენის დღეები ჯერ არ არის დამატებული.
+          </div>
+        )}
+      </div>
 
       {/* CSS animation inline styling */}
       <style>{`

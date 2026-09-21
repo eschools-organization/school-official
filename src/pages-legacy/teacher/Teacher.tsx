@@ -14,7 +14,7 @@ const EyeOffIcon = IoEyeOffOutline as React.FC<{ size?: number | string }>;
 import { IconType } from "react-icons";
 import { useColor } from "./../../components/ColorContext";
 import ColorPalette from "./../../components/ColorPalette";
-import { useNavigate, Routes, Route, useParams } from "react-router-dom"; // For navigation after logout and useParams
+import { useNavigate, Routes, Route, useParams, useSearchParams } from "react-router-dom"; // For navigation after logout and useParams
 import InfoModal from "../../components/InfoModal";
 import DetailedGradeHistory from "../../components/admin/DetailedGradeHistory";
 import { clearAuthSession, validateSession } from "@/lib/auth";
@@ -168,6 +168,181 @@ const TutorClassDetails: React.FC<{
   );
 };
 
+interface TeacherChangePasswordModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  selectedColor: string;
+}
+
+const TeacherChangePasswordModal: React.FC<TeacherChangePasswordModalProps> = ({
+  isOpen,
+  onClose,
+  selectedColor,
+}) => {
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passError, setPassError] = useState('');
+  const [passSuccess, setPassSuccess] = useState('');
+  const [passLoading, setPassLoading] = useState(false);
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  if (!isOpen) return null;
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPassError('');
+    setPassSuccess('');
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      setPassError('ყველა ველი აუცილებელია');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPassError('ახალი პაროლები არ ემთხვევა');
+      return;
+    }
+    setPassLoading(true);
+    try {
+      const loginData = JSON.parse(localStorage.getItem('login') || '{}');
+      const user_ID = loginData.user_ID;
+      const res = await fetch('/api/teacher/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teacher_id: user_ID, oldPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPassSuccess('პაროლი წარმატებით შეიცვალა!');
+        setOldPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setTimeout(() => {
+          onClose();
+          setPassSuccess('');
+        }, 1200);
+      } else {
+        setPassError(data.message || 'შეცდომა პაროლის შეცვლისას');
+      }
+    } catch {
+      setPassError('სერვერთან კავშირი ვერ დამყარდა');
+    } finally {
+      setPassLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+      <div style={{ background: 'rgba(26, 43, 85, 0.9)', backdropFilter: 'blur(30px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '420px', boxShadow: '0 20px 50px rgba(0,0,0,0.6)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h3 style={{ color: 'white', margin: 0, fontSize: '20px', fontWeight: 800 }}>პაროლის შეცვლა</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer' }}>
+            <FaRegTimesCircle size={20} />
+          </button>
+        </div>
+        <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {passError && <div style={{ color: '#ef4444', background: '#ef444415', padding: '10px', borderRadius: '8px', fontSize: '13px' }}>{passError}</div>}
+          {passSuccess && <div style={{ color: '#10b981', background: '#10b98115', padding: '10px', borderRadius: '8px', fontSize: '13px' }}>{passSuccess}</div>}
+          
+          <div>
+            <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px', display: 'block', marginBottom: '6px', fontWeight: 600 }}>მიმდინარე პაროლი</label>
+            <div style={{ position: 'relative', width: '100%' }}>
+              <input
+                type={showOldPassword ? "text" : "password"}
+                autoComplete="current-password"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                value={oldPassword}
+                onChange={(e) => setOldPassword(e.target.value)}
+                className="admin-input"
+                style={{ width: '100%', paddingRight: '42px', boxSizing: 'border-box' }}
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowOldPassword(!showOldPassword)}
+                style={{
+                  position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                  background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer',
+                  padding: 0, minHeight: 'auto', minWidth: 'auto', display: 'flex', alignItems: 'center'
+                }}
+              >
+                {showOldPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px', display: 'block', marginBottom: '6px', fontWeight: 600 }}>ახალი პაროლი</label>
+            <div style={{ position: 'relative', width: '100%' }}>
+              <input
+                type={showNewPassword ? "text" : "password"}
+                autoComplete="new-password"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="admin-input"
+                style={{ width: '100%', paddingRight: '42px', boxSizing: 'border-box' }}
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowNewPassword(!showNewPassword)}
+                style={{
+                  position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                  background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer',
+                  padding: 0, minHeight: 'auto', minWidth: 'auto', display: 'flex', alignItems: 'center'
+                }}
+              >
+                {showNewPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px', display: 'block', marginBottom: '6px', fontWeight: 600 }}>დაადასტურეთ ახალი პაროლი</label>
+            <div style={{ position: 'relative', width: '100%' }}>
+              <input
+                type={showConfirmPassword ? "text" : "password"}
+                autoComplete="new-password"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="admin-input"
+                style={{ width: '100%', paddingRight: '42px', boxSizing: 'border-box' }}
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                style={{
+                  position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                  background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer',
+                  padding: 0, minHeight: 'auto', minWidth: 'auto', display: 'flex', alignItems: 'center'
+                }}
+              >
+                {showConfirmPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
+              </button>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+            <button type="submit" className="admin-submit-btn" disabled={passLoading} style={{ flex: 1 }}>
+              {passLoading ? 'მუშავდება...' : 'შენახვა'}
+            </button>
+            <button type="button" onClick={onClose} className="admin-cancel-btn">
+              გაუქმება
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 const Teacher: React.FC = () => {
   const BoxWidth = 350;
   const BoxGap = 20;
@@ -257,55 +432,8 @@ const Teacher: React.FC = () => {
     }
   }, [activeTab, teacherAnnouncements]);
 
-  // Password change state for teacher
+  // Password change modal visibility state
   const [isPassModalOpen, setIsPassModalOpen] = useState(false);
-  const [oldPassword, setOldPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [passError, setPassError] = useState('');
-  const [passSuccess, setPassSuccess] = useState('');
-  const [passLoading, setPassLoading] = useState(false);
-  const [showOldPassword, setShowOldPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPassError('');
-    setPassSuccess('');
-    if (!oldPassword || !newPassword || !confirmPassword) {
-      setPassError('ყველა ველი აუცილებელია');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPassError('ახალი პაროლები არ ემთხვევა');
-      return;
-    }
-    setPassLoading(true);
-    try {
-      const loginData = JSON.parse(localStorage.getItem('login') || '{}');
-      const user_ID = loginData.user_ID;
-      const res = await fetch('/api/teacher/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teacher_id: user_ID, oldPassword, newPassword }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setPassSuccess('პაროლი წარმატებით შეიცვალა!');
-        setOldPassword('');
-        setNewPassword('');
-        setConfirmPassword('');
-        setTimeout(() => setIsPassModalOpen(false), 1500);
-      } else {
-        setPassError(data.message || 'შეცდომა პაროლის შეცვლისას');
-      }
-    } catch {
-      setPassError('სერვერთან კავშირი ვერ დამყარდა');
-    } finally {
-      setPassLoading(false);
-    }
-  };
 
   useEffect(() => {
     const fetchClasses = async () => {
@@ -495,68 +623,163 @@ const Teacher: React.FC = () => {
 
     const hasEvents = calendarEvents && calendarEvents.length > 0;
 
+    const getWeekDate = (dayOffsetIndex: number) => {
+      const now = new Date();
+      const currentDay = now.getDay(); // 0=Sun, 1=Mon...6=Sat
+      const diffToMon = currentDay === 0 ? -6 : 1 - currentDay;
+      const d = new Date(now);
+      d.setDate(now.getDate() + diffToMon + dayOffsetIndex);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    const daysNames = ["ორშაბათი", "სამშაბათი", "ოთხშაბათი", "ხუთშაბათი", "პარასკევი", "შაბათი"];
+    const daysShort = ["ორშ", "სამ", "ოთხ", "ხუთ", "პარ"];
+
+    // Find makeup events for current week
+    const currentWeekEvents = (calendarEvents || []).filter(evt => {
+      const monStr = getWeekDate(0);
+      const satStr = getWeekDate(5);
+      return evt.date >= monStr && evt.date <= satStr;
+    });
+
+    const makeupEventThisWeek = currentWeekEvents.find(e => e.type === 'makeup');
+    const hasSaturdayMakeup = !!makeupEventThisWeek;
+
+    const activeDayIndices = [0, 1, 2, 3, 4];
+    if (hasSaturdayMakeup) {
+      activeDayIndices.push(5); // Saturday
+    }
+
     return (
       <div className="schedule-grid-container">
-        {hasEvents && (
+        {/* Makeup notice about Saturday */}
+        {makeupEventThisWeek && (
           <div style={{
             marginBottom: '16px',
+            background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+            border: '1.5px solid #0284c7',
+            borderRadius: '12px',
+            padding: '14px 18px',
+            color: '#0369a1',
+            fontWeight: 700,
+            fontSize: '14px',
             display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
+            alignItems: 'center',
+            gap: '10px',
+            boxShadow: '0 4px 12px rgba(2, 132, 199, 0.15)'
           }}>
-            {calendarEvents.map((evt) => (
-              <div
-                key={evt.date}
-                style={{
-                  backgroundColor: evt.type === 'holiday' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(14, 165, 233, 0.15)',
-                  border: evt.type === 'holiday' ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(14, 165, 233, 0.3)',
-                  borderRadius: '10px',
-                  padding: '10px 16px',
-                  color: evt.type === 'holiday' ? '#f87171' : '#38bdf8',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px'
-                }}
-              >
-                <span>{evt.type === 'holiday' ? 'დასვენების დღე:' : 'აღდგენის დღე:'}</span>
-                <strong>{evt.date}</strong> — <span>{evt.title}</span>
-                {evt.type === 'makeup' && evt.replacementDayOfWeek !== undefined && (
-                  <span style={{ opacity: 0.9 }}>
-                    ({days[evt.replacementDayOfWeek]}ს ცხრილით)
-                  </span>
-                )}
-              </div>
-            ))}
+            <span style={{ fontSize: '18px' }}>📌</span>
+            <div>
+              <strong>შაბათი ({makeupEventThisWeek.date}):</strong> ტარდება აღდგენითი სწავლა! (აღადგენს <strong>{daysNames[makeupEventThisWeek.replacementDayOfWeek ?? 0]}ს</strong> გაკვეთილებს — {makeupEventThisWeek.title})
+            </div>
           </div>
         )}
 
-        <div className="schedule-header-grid">
+        {/* Schedule Header */}
+        <div className="schedule-header-grid" style={{
+          gridTemplateColumns: `60px repeat(${activeDayIndices.length}, 1fr)`
+        }}>
           <div className="schedule-day-pill" style={{ opacity: 0 }}></div> {/* Spacer for time column */}
-          {days.map((day) => (
-            <div key={day} className="schedule-day-pill">{day}</div>
-          ))}
+          {activeDayIndices.map((dayIdx) => {
+            const dateStr = getWeekDate(dayIdx);
+            const isSat = dayIdx === 5;
+            const eventForDay = (calendarEvents || []).find(e => e.date === dateStr);
+            const isHolidayOnly = eventForDay?.type === 'holiday';
+
+            return (
+              <div
+                key={dayIdx}
+                className="schedule-day-pill"
+                style={{
+                  backgroundColor: isSat ? '#0284c7' : isHolidayOnly ? '#ef4444' : undefined,
+                  color: (isSat || isHolidayOnly) ? '#ffffff' : undefined,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  padding: '6px 4px'
+                }}
+              >
+                <span>{isSat ? `შაბ (აღდგენა)` : daysShort[dayIdx]}</span>
+                {isHolidayOnly && <span style={{ fontSize: '10px', opacity: 0.9 }}>(უქმე)</span>}
+              </div>
+            );
+          })}
         </div>
-        
+
+        {/* Schedule Rows */}
         {lessons.map((lessonIdx, rowIdx) => (
-          <div key={lessonIdx} className="schedule-row">
+          <div key={lessonIdx} className="schedule-row" style={{
+            gridTemplateColumns: `60px repeat(${activeDayIndices.length}, 1fr)`
+          }}>
             <div className="schedule-time-slot">
               {lessonRoman[rowIdx]}
             </div>
-            {days.map((_, dayIdx) => {
-              const slot = schedule[dayIdx]?.[lessonIdx - 1];
+            {activeDayIndices.map((dayIdx) => {
+              const dateStr = getWeekDate(dayIdx);
+              const eventForDay = (calendarEvents || []).find(e => e.date === dateStr);
+              const isHoliday = eventForDay?.type === 'holiday';
+
+              // Effective schedule index
+              let effectiveIdx = dayIdx;
+              if (dayIdx === 5 && makeupEventThisWeek && makeupEventThisWeek.replacementDayOfWeek !== undefined) {
+                effectiveIdx = makeupEventThisWeek.replacementDayOfWeek;
+              }
+
+              // If holiday without makeup replacement on that weekday, empty/remove lessons
+              const slot = isHoliday ? null : schedule[effectiveIdx]?.[lessonIdx - 1];
+
+              const getResolvedSubject = (s: any) => {
+                if (!s) return "";
+                if (s.subject_id) {
+                  const foundSub = allSubjects.find((sub: any) => sub._id === s.subject_id || sub._id?.toString() === s.subject_id?.toString());
+                  if (foundSub?.name) return foundSub.name;
+                }
+                if (s.subjectName && s.subjectName.trim() !== '') {
+                  return s.subjectName;
+                }
+                const matchedCls = teachesClasses.find((c: any) =>
+                  c._id === s.class_id || c.classname === s.className
+                );
+                if (matchedCls && matchedCls.teacherSubjects && matchedCls.teacherSubjects.length === 1) {
+                  return matchedCls.teacherSubjects[0];
+                }
+                return "";
+              };
+              const subjText = getResolvedSubject(slot);
+
               return (
                 <div
                   key={dayIdx}
                   className={`schedule-lesson-card ${slot ? 'active' : ''}`}
+                  style={{
+                    backgroundColor: isHoliday ? 'rgba(239, 68, 68, 0.08)' : undefined,
+                    borderColor: isHoliday ? 'rgba(239, 68, 68, 0.2)' : undefined
+                  }}
                 >
-                  {slot ? (
-                    <div className="schedule-subject-name" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                  {isHoliday ? (
+                    <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: 800 }}>🔴 დასვენება</span>
+                  ) : slot ? (
+                    <div className="schedule-subject-name" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', textAlign: 'center', padding: '4px' }}>
                       <span style={{ fontWeight: 900, fontSize: '15px', color: '#0f172a' }}>{slot.className}</span>
-                      {slot.subjectName && (
-                        <span style={{ fontSize: '12px', color: '#2563eb', fontWeight: '700' }}>{slot.subjectName}</span>
-                      )}
+                      {subjText ? (
+                        <span style={{
+                          fontSize: '12px',
+                          color: '#2563eb',
+                          fontWeight: '800',
+                          background: '#eff6ff',
+                          border: '1px solid #bfdbfe',
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          display: 'inline-block',
+                          maxWidth: '100%',
+                          wordBreak: 'break-word'
+                        }}>
+                          {subjText}
+                        </span>
+                      ) : null}
                     </div>
                   ) : (
                     <span className="schedule-empty">---</span>
@@ -566,12 +789,74 @@ const Teacher: React.FC = () => {
             })}
           </div>
         ))}
+
+        {/* List of Holidays and Makeup Days AT THE BOTTOM */}
+        <div style={{
+          marginTop: '24px',
+          padding: '18px 20px',
+          background: '#ffffff',
+          borderRadius: '16px',
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.04)'
+        }}>
+          <h4 style={{ margin: '0 0 12px 0', fontSize: '15px', fontWeight: 900, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>📅</span> დასვენების და აღდგენის დღეების სია
+          </h4>
+
+          {hasEvents ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {calendarEvents.map((evt) => (
+                <div
+                  key={evt._id || evt.date}
+                  style={{
+                    backgroundColor: evt.type === 'holiday' ? '#fef2f2' : '#f0f9ff',
+                    border: evt.type === 'holiday' ? '1px solid #fecaca' : '1px solid #bae6fd',
+                    borderRadius: '10px',
+                    padding: '10px 14px',
+                    color: evt.type === 'holiday' ? '#991b1b' : '#0369a1',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '8px'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      background: evt.type === 'holiday' ? '#ef4444' : '#0284c7',
+                      color: '#ffffff'
+                    }}>
+                      {evt.type === 'holiday' ? '🔴 დასვენება' : '🔵 აღდგენა'}
+                    </span>
+                    <strong>{evt.date}</strong> — <span>{evt.title}</span>
+                  </div>
+
+                  {evt.type === 'makeup' && evt.replacementDayOfWeek !== undefined && (
+                    <span style={{ fontSize: '12px', color: '#0284c7', fontWeight: 800 }}>
+                      📌 შაბათი ({evt.date}) — აღადგენს {daysNames[evt.replacementDayOfWeek]}ს გაკვეთილებს
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize: '13px', color: '#64748b' }}>
+              დასვენების ან აღდგენის დღეები ჯერ არ არის დამატებული.
+            </div>
+          )}
+        </div>
       </div>
     );
   };
 
   // Unified Teacher Layout Component
-  const TeacherLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const renderTeacherLayout = (children: React.ReactNode) => {
     return (
       <div className="admin-page-wrapper">
         <div
@@ -617,115 +902,11 @@ const Teacher: React.FC = () => {
         </div>
 
         {/* Teacher Password Change Modal */}
-        {isPassModalOpen && (
-          <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-            <div style={{ background: 'rgba(26, 43, 85, 0.9)', backdropFilter: 'blur(30px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '420px', boxShadow: '0 20px 50px rgba(0,0,0,0.6)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h3 style={{ color: 'white', margin: 0, fontSize: '20px', fontWeight: 800 }}>პაროლის შეცვლა</h3>
-                <button onClick={() => setIsPassModalOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer' }}>
-                  <FaRegTimesCircle size={20} />
-                </button>
-              </div>
-              <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {passError && <div style={{ color: '#ef4444', background: '#ef444415', padding: '10px', borderRadius: '8px', fontSize: '13px' }}>{passError}</div>}
-                {passSuccess && <div style={{ color: '#10b981', background: '#10b98115', padding: '10px', borderRadius: '8px', fontSize: '13px' }}>{passSuccess}</div>}
-                
-                <div>
-                  <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px', display: 'block', marginBottom: '6px', fontWeight: 600 }}>მიმდინარე პაროლი</label>
-                  <div style={{ position: 'relative', width: '100%' }}>
-                    <input
-                      type={showOldPassword ? "text" : "password"}
-                      autoComplete="current-password"
-                      autoCorrect="off"
-                      autoCapitalize="none"
-                      spellCheck={false}
-                      value={oldPassword}
-                      onChange={(e) => setOldPassword(e.target.value)}
-                      className="admin-input"
-                      style={{ width: '100%', paddingRight: '42px', boxSizing: 'border-box' }}
-                      placeholder="••••••••"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowOldPassword(!showOldPassword)}
-                      style={{
-                        position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
-                        background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer',
-                        padding: 0, minHeight: 'auto', minWidth: 'auto', display: 'flex', alignItems: 'center'
-                      }}
-                    >
-                      {showOldPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px', display: 'block', marginBottom: '6px', fontWeight: 600 }}>ახალი პაროლი</label>
-                  <div style={{ position: 'relative', width: '100%' }}>
-                    <input
-                      type={showNewPassword ? "text" : "password"}
-                      autoComplete="new-password"
-                      autoCorrect="off"
-                      autoCapitalize="none"
-                      spellCheck={false}
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="admin-input"
-                      style={{ width: '100%', paddingRight: '42px', boxSizing: 'border-box' }}
-                      placeholder="••••••••"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowNewPassword(!showNewPassword)}
-                      style={{
-                        position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
-                        background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer',
-                        padding: 0, minHeight: 'auto', minWidth: 'auto', display: 'flex', alignItems: 'center'
-                      }}
-                    >
-                      {showNewPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px', display: 'block', marginBottom: '6px', fontWeight: 600 }}>დაადასტურეთ ახალი პაროლი</label>
-                  <div style={{ position: 'relative', width: '100%' }}>
-                    <input
-                      type={showConfirmPassword ? "text" : "password"}
-                      autoComplete="new-password"
-                      autoCorrect="off"
-                      autoCapitalize="none"
-                      spellCheck={false}
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="admin-input"
-                      style={{ width: '100%', paddingRight: '42px', boxSizing: 'border-box' }}
-                      placeholder="••••••••"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      style={{
-                        position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
-                        background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer',
-                        padding: 0, minHeight: 'auto', minWidth: 'auto', display: 'flex', alignItems: 'center'
-                      }}
-                    >
-                      {showConfirmPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
-                    </button>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
-                  <button type="submit" className="admin-submit-btn" disabled={passLoading} style={{ flex: 1 }}>
-                    {passLoading ? 'მუშავდება...' : 'შენახვა'}
-                  </button>
-                  <button type="button" onClick={() => setIsPassModalOpen(false)} className="admin-cancel-btn">
-                    გაუქმება
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        <TeacherChangePasswordModal
+          isOpen={isPassModalOpen}
+          onClose={() => setIsPassModalOpen(false)}
+          selectedColor={selectedColor}
+        />
       </div>
     );
   };
@@ -733,30 +914,44 @@ const Teacher: React.FC = () => {
   // Teach class options page
   const TeachClassOptionsPage: React.FC = () => {
     const { id } = useParams();
+    const [searchParams] = useSearchParams();
     const classObj = teachesClasses.find((cls: any) => cls._id === id);
+
     const handleCardClick = (label: string) => {
+      const query = new URLSearchParams();
+      if (searchParams.get("subject_id")) query.set("subject_id", searchParams.get("subject_id")!);
+      if (searchParams.get("subject_name")) query.set("subject_name", searchParams.get("subject_name")!);
+      if (searchParams.get("lesson_num")) query.set("lesson_num", searchParams.get("lesson_num")!);
+      const qStr = query.toString() ? `?${query.toString()}` : '';
+
       if (label === "ნიშნის შეტანა") {
-        navigate(`/teacher/teach/${id}/grade`);
+        navigate(`/teacher/teach/${id}/grade${qStr}`);
       } else if (label === "ისტორია") {
-        navigate(`/teacher/teach/${id}/history`);
+        navigate(`/teacher/teach/${id}/history${qStr}`);
       } else if (label === "სტატისტიკა") {
-        navigate(`/teacher/teach/${id}/statistics`);
+        navigate(`/teacher/teach/${id}/statistics${qStr}`);
       } else if (label === "დავალებები") {
-        navigate(`/teacher/teach/${id}/homework`);
+        navigate(`/teacher/teach/${id}/homework${qStr}`);
       }
     };
-    return (
-      <TeacherLayout>
+
+    return renderTeacherLayout(
         <div className="admin-view-container" style={{ maxWidth: '800px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <button
+            type="button"
             onClick={() => navigate("/teacher")}
             className="admin-back-btn"
-            style={{ alignSelf: 'flex-start', marginBottom: '24px' }}
+            style={{ alignSelf: 'flex-start', marginBottom: '24px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
           >
-            უკან დაბრუნება
+            <ArrowLeftIcon size={18} /> უკან დაბრუნება
           </button>
-          <div className="admin-view-header" style={{ justifyContent: 'center', marginTop: '10px' }}>
+          <div className="admin-view-header" style={{ justifyContent: 'center', marginTop: '10px', flexDirection: 'column', gap: '6px' }}>
             <h2 className="admin-view-title" style={{ fontSize: '32px', fontWeight: 800 }}>{classObj ? classObj.classname : ""}</h2>
+            {classObj?.teacherSubjects && classObj.teacherSubjects.length > 0 && (
+              <div style={{ fontSize: '15px', color: '#2563eb', fontWeight: 800, background: '#eff6ff', border: '1px solid #bfdbfe', padding: '4px 16px', borderRadius: '20px' }}>
+                📖 {classObj.teacherSubjects.join(", ")}
+              </div>
+            )}
           </div>
           <div className="admin-grid" style={{ marginTop: '30px', width: '100%', justifyContent: 'center' }}>
             {[
@@ -780,7 +975,6 @@ const Teacher: React.FC = () => {
             ))}
           </div>
         </div>
-      </TeacherLayout>
     );
   };
 
@@ -792,11 +986,15 @@ const Teacher: React.FC = () => {
     const teacherObj = allTeachers.find((t: any) => t.user_ID === user_ID);
     const teacherName = teacherObj ? `${teacherObj.name} ${teacherObj.surname}` : "მასწავლებელი";
 
-    return (
-      <TeacherLayout>
+    return renderTeacherLayout(
         <div className="admin-view-container" style={{ maxWidth: "900px", width: "100%", margin: "0 auto" }}>
-          <button onClick={() => navigate(`/teacher/teach/${id}`)} className="admin-back-btn" style={{ marginBottom: "24px" }}>
-            უკან დაბრუნება
+          <button
+            type="button"
+            onClick={() => navigate(`/teacher/teach/${id}`)}
+            className="admin-back-btn"
+            style={{ marginBottom: "24px", display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+          >
+            <ArrowLeftIcon size={18} /> უკან დაბრუნება
           </button>
           <HomeworkModule
             userRole="teacher"
@@ -806,13 +1004,17 @@ const Teacher: React.FC = () => {
             selectedColor={selectedColor}
           />
         </div>
-      </TeacherLayout>
     );
   };
 
   // Grade entry page
   const GradeEntryPage: React.FC = () => {
     const { id } = useParams();
+    const [searchParams] = useSearchParams();
+    const urlSubjectId = searchParams.get("subject_id");
+    const urlSubjectName = searchParams.get("subject_name");
+    const urlLessonNum = searchParams.get("lesson_num");
+
     const { data: classExams } = useQuery<any[]>({
       queryKey: ['class-scheduled-exams-entry', id],
       queryFn: async () => {
@@ -832,6 +1034,15 @@ const Teacher: React.FC = () => {
     const [isProjectToggle, setIsProjectToggle] = useState(false);
     const [lessonNum, setLessonNum] = useState<number>(1);
     const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+      if (urlSubjectId) {
+        setSelectedSubject(urlSubjectId);
+      }
+      if (urlLessonNum && !isNaN(Number(urlLessonNum))) {
+        setLessonNum(Number(urlLessonNum));
+      }
+    }, [urlSubjectId, urlLessonNum]);
     const [date, setDate] = useState(() => {
       const today = new Date();
       return today.toISOString().split("T")[0];
@@ -1183,19 +1394,62 @@ const Teacher: React.FC = () => {
       }
     }
 
-    return (
-      <TeacherLayout>
+    // Auto-select subject if only 1 subject taught by teacher in this class and none selected
+    useEffect(() => {
+      if (!selectedSubject && teacherSubjects.length === 1 && teacherSubjects[0].subject_id) {
+        setSelectedSubject(teacherSubjects[0].subject_id);
+      } else if (!selectedSubject && urlSubjectName) {
+        const found = allSubjects.find((s: any) => s.name?.toLowerCase() === urlSubjectName.toLowerCase());
+        if (found) setSelectedSubject(found._id);
+      }
+    }, [teacherSubjects, selectedSubject, urlSubjectName, allSubjects]);
+
+    const activeSubjectName = allSubjects.find((s: any) => s._id === selectedSubject)?.name || urlSubjectName;
+
+    return renderTeacherLayout(
         <div className="admin-view-container" style={{ width: '100%', maxWidth: '900px', margin: '0 auto' }}>
           <button
+            type="button"
             onClick={handleBack}
             className="admin-back-btn"
-            style={{ marginBottom: '24px' }}
+            style={{ marginBottom: '24px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
           >
-            უკან დაბრუნება
+            <ArrowLeftIcon size={18} /> უკან დაბრუნება
           </button>
 
           <div className="admin-form-container" style={{ maxWidth: '100%', marginBottom: '40px' }}>
             <h2 className="admin-form-title">ნიშნის შეტანა</h2>
+
+            {activeSubjectName && (
+              <div style={{
+                background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+                border: '1.5px solid #bfdbfe',
+                borderRadius: '14px',
+                padding: '12px 18px',
+                marginBottom: '24px',
+                color: '#1e40af',
+                fontWeight: 800,
+                fontSize: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '10px',
+                boxShadow: '0 4px 12px rgba(37, 99, 235, 0.08)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '16px' }}>📌</span>
+                  <span>
+                    შედიხართ საგანში: <strong style={{ color: '#1e3a8a', fontSize: '15px' }}>{activeSubjectName}</strong>
+                  </span>
+                </div>
+                {lessonNum > 0 && (
+                  <span style={{ background: '#2563eb', color: '#ffffff', padding: '4px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: 800 }}>
+                    {lessonNum}-ე გაკვეთილი
+                  </span>
+                )}
+              </div>
+            )}
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
             <div className="admin-form-group">
@@ -1523,7 +1777,6 @@ const Teacher: React.FC = () => {
           onClose={() => setInfoModalOpen(false)}
         />
       </div>
-    </TeacherLayout>
     );
   };
 
@@ -1568,8 +1821,7 @@ const Teacher: React.FC = () => {
       }
     }
 
-    return (
-      <TeacherLayout>
+    return renderTeacherLayout(
         <DetailedGradeHistory
           classId={classId}
           className={className}
@@ -1579,7 +1831,6 @@ const Teacher: React.FC = () => {
           onBackClick={() => navigate(-1)}
           isAdmin={false}
         />
-      </TeacherLayout>
     );
   };
 
@@ -1768,15 +2019,15 @@ const Teacher: React.FC = () => {
 
     const filteredStudents = students;
 
-    return (
-      <TeacherLayout>
+    return renderTeacherLayout(
         <div className="admin-view-container" style={{ width: '100%', maxWidth: '850px', margin: '0 auto' }}>
           <button
-            onClick={() => navigate(-1)}
+            type="button"
+            onClick={() => navigate(`/teacher/teach/${id}`)}
             className="admin-back-btn"
-            style={{ marginBottom: '24px' }}
+            style={{ marginBottom: '24px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
           >
-            უკან დაბრუნება
+            <ArrowLeftIcon size={18} /> უკან დაბრუნება
           </button>
 
         <div className="admin-form-container" style={{ marginTop: '20px', marginBottom: '40px' }}>
@@ -1892,9 +2143,81 @@ const Teacher: React.FC = () => {
           </div>
         )}
       </div>
-    </TeacherLayout>
     );
   };
+
+  const { data: globalCalendarEvents } = useQuery<any[]>({
+    queryKey: ['calendar-events-teacher-main'],
+    queryFn: async () => {
+      const res = await fetch('/api/calendar-events');
+      if (!res.ok) return [];
+      return res.json();
+    },
+    refetchInterval: 10000
+  });
+
+  const getTodayInfo = () => {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${yyyy}-${mm}-${dd}`;
+
+    const dayNames = ['კვირა', 'ორშაბათი', 'სამშაბათი', 'ოთხშაბათი', 'ხუთშაბათი', 'პარასკევი', 'შაბათი'];
+    const jsDay = now.getDay(); // 0 = Sun, 1 = Mon ... 6 = Sat
+    const todayName = dayNames[jsDay];
+    const todayDateFormatted = `${todayName}, ${dd}.${mm}.${yyyy}`;
+
+    const eventForToday = (globalCalendarEvents || []).find((e: any) => e.date === todayStr);
+    let effectiveDayIdx: number | null = null;
+    let isTodayHoliday = false;
+
+    if (eventForToday) {
+      if (eventForToday.type === 'holiday') {
+        isTodayHoliday = true;
+      } else if (eventForToday.type === 'makeup' && eventForToday.replacementDayOfWeek !== undefined) {
+        effectiveDayIdx = eventForToday.replacementDayOfWeek;
+      }
+    } else if (jsDay >= 1 && jsDay <= 5) {
+      effectiveDayIdx = jsDay - 1; // 0=Mon..4=Fri
+    }
+
+    const isWeekend = (jsDay === 0 || jsDay === 6) && !eventForToday;
+
+    const romanNumerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+    const todayLessons: any[] = [];
+
+    if (effectiveDayIdx !== null && teacherSchedule && teacherSchedule[effectiveDayIdx]) {
+      const row = teacherSchedule[effectiveDayIdx];
+      row.forEach((slot: any, lessonSlotIdx: number) => {
+        if (slot && (slot.className || slot.class_id)) {
+          let classId = slot.class_id;
+          if (!classId) {
+            const foundCls = teachesClasses.find((c: any) => c.classname === slot.className);
+            if (foundCls) classId = foundCls._id;
+          }
+          todayLessons.push({
+            lessonNumber: lessonSlotIdx + 1,
+            lessonRoman: romanNumerals[lessonSlotIdx] || `${lessonSlotIdx + 1}`,
+            className: slot.className,
+            subjectName: slot.subjectName,
+            subjectId: slot.subject_id,
+            classId: classId
+          });
+        }
+      });
+    }
+
+    return {
+      todayDateFormatted,
+      isTodayHoliday,
+      isWeekend,
+      todayLessons,
+      eventForToday
+    };
+  };
+
+  const { todayDateFormatted, isTodayHoliday, isWeekend, todayLessons, eventForToday } = getTodayInfo();
 
   const tabList = [
     { key: "teaching", label: "სასწავლო კლასები", badge: false },
@@ -1905,8 +2228,7 @@ const Teacher: React.FC = () => {
   ];
 
   // Main page content
-  const mainContent = (
-    <TeacherLayout>
+  const mainContent = renderTeacherLayout(
       <div style={{ width: '100%', maxWidth: '1000px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         {/* Tab bar */}
         <div className="admin-tabs" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -1938,6 +2260,18 @@ const Teacher: React.FC = () => {
 
         {/* Tab content */}
         <div className="admin-view-container" style={{ width: '100%', padding: 0 }}>
+          {activeTab !== "teaching" && (
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-start', marginBottom: '16px' }}>
+              <button
+                type="button"
+                className="admin-back-btn"
+                onClick={() => setActiveTab("teaching")}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+              >
+                <ArrowLeftIcon size={18} /> მთავარ გვერდზე დაბრუნება
+              </button>
+            </div>
+          )}
           {activeTab === "calendar" &&
             (scheduleLoading ? (
               <div className="admin-form-container" style={{ textAlign: 'center' }}>
@@ -1973,8 +2307,101 @@ const Teacher: React.FC = () => {
             </div>
           )}
           {activeTab === "teaching" && (
-            <div className="admin-view-container">
-              <h2 className="admin-view-title" style={{ marginBottom: '30px', textAlign: 'center' }}>კლასები, სადაც ასწავლით</h2>
+            <div className="admin-view-container" style={{ width: '100%', padding: '20px 0' }}>
+              
+              {/* Today's Lessons Section */}
+              <div style={{ marginBottom: '40px', width: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px', borderBottom: '2px solid #e2e8f0', paddingBottom: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ background: selectedColor, color: '#ffffff', width: '36px', height: '36px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 900 }}>
+                      📅
+                    </div>
+                    <div>
+                      <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                        დღევანდელი გაკვეთილები
+                      </h2>
+                      <p style={{ fontSize: '13px', color: '#64748b', margin: '2px 0 0 0', fontWeight: 600 }}>
+                        ჩასმული საათები რიგითობით (ცხრილის მიხედვით)
+                      </p>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: '13px', background: `${selectedColor}15`, color: selectedColor, padding: '6px 14px', borderRadius: '20px', fontWeight: 800, border: `1px solid ${selectedColor}30` }}>
+                    {todayDateFormatted}
+                  </span>
+                </div>
+
+                {isTodayHoliday ? (
+                  <div style={{ background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: '16px', padding: '20px', textAlign: 'center', color: '#991b1b', fontWeight: 800, fontSize: '15px' }}>
+                    🔴 დღეს დასვენების დღეა {eventForToday?.title ? `(${eventForToday.title})` : ''} — გაკვეთილები არ ტარდება
+                  </div>
+                ) : todayLessons.length > 0 ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
+                    {todayLessons.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="admin-card"
+                        onClick={() => {
+                          if (item.classId) {
+                            const query = new URLSearchParams();
+                            if (item.subjectId) query.set('subject_id', item.subjectId);
+                            if (item.subjectName) query.set('subject_name', item.subjectName);
+                            query.set('lesson_num', String(item.lessonNumber));
+                            navigate(`/teacher/teach/${item.classId}/grade?${query.toString()}`);
+                          }
+                        }}
+                        style={{
+                          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+                          border: `1.5px solid ${selectedColor}35`,
+                          borderRadius: '20px',
+                          padding: '20px 16px',
+                          cursor: item.classId ? 'pointer' : 'default',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '10px',
+                          boxShadow: '0 8px 20px rgba(0,0,0,0.04)',
+                          transition: 'all 0.2s ease-in-out',
+                          position: 'relative'
+                        }}
+                      >
+                        <div style={{
+                          background: selectedColor,
+                          color: '#ffffff',
+                          padding: '4px 14px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: 900,
+                          letterSpacing: '0.5px',
+                          boxShadow: `0 4px 10px ${selectedColor}44`
+                        }}>
+                          {item.lessonRoman} გაკვეთილი
+                        </div>
+
+                        <div style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a', margin: '4px 0 0 0' }}>
+                          {item.className}
+                        </div>
+
+                        {item.subjectName && (
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: selectedColor, background: `${selectedColor}12`, padding: '4px 12px', borderRadius: '8px' }}>
+                            {item.subjectName}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '24px', textAlign: 'center', color: '#64748b', fontWeight: 700, fontSize: '14px' }}>
+                    {isWeekend ? '🏖️ დღეს უქმეებია — გაკვეთილები არ გაქვთ' : '☕ დღეს არ გაქვთ ჩასმული გაკვეთილები'}
+                  </div>
+                )}
+              </div>
+
+              {/* All Teaching Classes Section */}
+              <div style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '12px', marginBottom: '20px' }}>
+                <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>📚</span> ყველა კლასი, სადაც ასწავლით
+                </h2>
+              </div>
               <div className="admin-grid">
                 {teachesClasses.length === 0 && (
                   <div className="admin-card">
@@ -2001,6 +2428,7 @@ const Teacher: React.FC = () => {
                   </div>
                 ))}
               </div>
+
             </div>
           )}
           {activeTab === "notices" && (
@@ -2015,7 +2443,6 @@ const Teacher: React.FC = () => {
           )}
         </div>
       </div>
-    </TeacherLayout>
   );
 
   // Tutor class details page
@@ -2060,8 +2487,7 @@ const Teacher: React.FC = () => {
       );
 
     if (activeSubject !== null) {
-      return (
-        <TeacherLayout>
+      return renderTeacherLayout(
           <DetailedGradeHistory
             classId={tutorClass._id}
             className={tutorClass.classname}
@@ -2071,12 +2497,10 @@ const Teacher: React.FC = () => {
             onBackClick={() => setActiveSubject(null)}
             isAdmin={false}
           />
-        </TeacherLayout>
       );
     }
 
-    return (
-      <TeacherLayout>
+    return renderTeacherLayout(
         <div className="admin-view-container" style={{ width: '100%', maxWidth: '950px', margin: '0 auto' }}>
           <button
             onClick={() => navigate("/teacher")}
@@ -2094,7 +2518,6 @@ const Teacher: React.FC = () => {
             onViewAllGrades={() => setActiveSubject('all')}
           />
         </div>
-      </TeacherLayout>
     );
   };
 

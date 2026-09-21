@@ -65,21 +65,33 @@ export function getGradesCollectionName(dateInput?: string | Date): string {
   return `${startStr}${endStr}year`;
 }
 
+let cachedCollectionNames: { names: string[]; expiresAt: number } | null = null;
+
 export async function getGradesCollectionNames(db: Db): Promise<string[]> {
-  const collections = await db.listCollections().toArray();
-  const names = collections.map((c) => c.name);
-  
-  const yearCollections = names.filter((name) => /^\d{4}year$/.test(name));
-  
-  if (names.includes("grades")) {
-    yearCollections.push("grades");
+  const now = Date.now();
+  if (cachedCollectionNames && cachedCollectionNames.expiresAt > now) {
+    return cachedCollectionNames.names;
   }
-  
-  if (yearCollections.length === 0) {
-    yearCollections.push(getGradesCollectionName());
+
+  try {
+    const collections = await db.listCollections().toArray();
+    const names = collections.map((c) => c.name);
+    
+    const yearCollections = names.filter((name) => /^\d{4}year$/.test(name));
+    
+    if (names.includes("grades")) {
+      yearCollections.push("grades");
+    }
+    
+    if (yearCollections.length === 0) {
+      yearCollections.push(getGradesCollectionName());
+    }
+    
+    cachedCollectionNames = { names: yearCollections, expiresAt: now + 60000 };
+    return yearCollections;
+  } catch (e) {
+    return ["grades", getGradesCollectionName()];
   }
-  
-  return yearCollections;
 }
 
 export function formatYearToCollectionName(yearInput?: string | null): string | null {
@@ -174,10 +186,10 @@ export async function findGrades(
   }
 
   if (collectionName) {
-    ensureIndexes(db, collectionName).catch(() => {});
+    ensureIndexes(db, collectionName);
     let results = await db.collection(collectionName).find(queryFilter).sort({ date: 1 }).toArray();
     if (results.length === 0 && collectionName !== "grades") {
-      ensureIndexes(db, "grades").catch(() => {});
+      ensureIndexes(db, "grades");
       results = await db.collection("grades").find(queryFilter).sort({ date: 1 }).toArray();
     }
     return results;
@@ -185,7 +197,7 @@ export async function findGrades(
 
   // If no specific collection specified, query ALL grade collections in parallel
   const collectionNames = await getGradesCollectionNames(db);
-  collectionNames.forEach((name) => ensureIndexes(db, name).catch(() => {}));
+  collectionNames.forEach((name) => ensureIndexes(db, name));
 
   const resultsArr = await Promise.all(
     collectionNames.map((name) => db.collection(name).find(queryFilter).sort({ date: 1 }).toArray())
@@ -206,34 +218,37 @@ export async function findGrades(
 const indexedCollections = new Set<string>();
 let globalIndexesCreated = false;
 
-export async function ensureIndexes(db: any, collectionName: string) {
+export function ensureIndexes(db: any, collectionName: string) {
   if (indexedCollections.has(collectionName)) return;
   indexedCollections.add(collectionName);
 
-  try {
-    const indexPromises: Promise<any>[] = [
-      db.collection(collectionName).createIndex({ class_id: 1, date: 1 }),
-      db.collection(collectionName).createIndex({ class_id: 1, student_id: 1 }),
-      db.collection(collectionName).createIndex({ student_id: 1, class_id: 1, date: 1 }),
-      db.collection(collectionName).createIndex({ student_id: 1, class_id: 1, subject_id: 1, date: 1, lesson_num: 1 }),
-      db.collection(collectionName).createIndex({ class_id: 1, subject_id: 1, date: 1 }),
-      db.collection(collectionName).createIndex({ student_id: 1, date: 1 }),
-    ];
+  // Background non-blocking execution
+  (async () => {
+    try {
+      const indexPromises: Promise<any>[] = [
+        db.collection(collectionName).createIndex({ class_id: 1, date: 1 }),
+        db.collection(collectionName).createIndex({ class_id: 1, student_id: 1 }),
+        db.collection(collectionName).createIndex({ student_id: 1, class_id: 1, date: 1 }),
+        db.collection(collectionName).createIndex({ student_id: 1, class_id: 1, subject_id: 1, date: 1, lesson_num: 1 }),
+        db.collection(collectionName).createIndex({ class_id: 1, subject_id: 1, date: 1 }),
+        db.collection(collectionName).createIndex({ student_id: 1, date: 1 }),
+      ];
 
-    if (!globalIndexesCreated) {
-      globalIndexesCreated = true;
-      indexPromises.push(
-        db.collection("students").createIndex({ user_ID: 1 }, { sparse: true }),
-        db.collection("teachers").createIndex({ user_ID: 1 }, { sparse: true }),
-        db.collection("assignments").createIndex({ class_id: 1, teacher_id: 1 }),
-        db.collection("assignment_submissions").createIndex({ assignment_id: 1, student_id: 1 })
-      );
+      if (!globalIndexesCreated) {
+        globalIndexesCreated = true;
+        indexPromises.push(
+          db.collection("students").createIndex({ user_ID: 1 }, { sparse: true }),
+          db.collection("teachers").createIndex({ user_ID: 1 }, { sparse: true }),
+          db.collection("assignments").createIndex({ class_id: 1, teacher_id: 1 }),
+          db.collection("assignment_submissions").createIndex({ assignment_id: 1, student_id: 1 })
+        );
+      }
+
+      await Promise.all(indexPromises);
+    } catch (err) {
+      console.error("Auto index creation failed:", err);
     }
-
-    await Promise.all(indexPromises);
-  } catch (err) {
-    console.error("Auto index creation failed:", err);
-  }
+  })();
 }
 
 

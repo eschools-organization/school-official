@@ -304,6 +304,85 @@ const AdminCalendarManager: React.FC<AdminCalendarManagerProps> = ({ teachers, c
   );
   const [savingAvail, setSavingAvail] = useState(false);
 
+  // Calendar Events (Holidays & Makeup Days) State
+  const [showHolidaysModal, setShowHolidaysModal] = useState(false);
+  const [calendarEventsList, setCalendarEventsList] = useState<CalendarEventItem[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(false);
+  const [newEventDate, setNewEventDate] = useState('');
+  const [newEventTitle, setNewEventTitle] = useState('');
+  const [newEventType, setNewEventType] = useState<'holiday' | 'makeup'>('holiday');
+  const [newEventReplacementDay, setNewEventReplacementDay] = useState<number>(0);
+  const [addingEvent, setAddingEvent] = useState(false);
+
+  const fetchCalendarEvents = async () => {
+    setLoadingEvents(true);
+    try {
+      const res = await fetch('/api/calendar-events');
+      if (res.ok) {
+        const data = await res.json();
+        setCalendarEventsList(data);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingEvents(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCalendarEvents();
+  }, []);
+
+  const handleAddCalendarEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEventDate || !newEventTitle) {
+      showPopup('გთხოვთ შეავსოთ თარიღი და დასახელება', 'error');
+      return;
+    }
+    setAddingEvent(true);
+    try {
+      const res = await fetch('/api/calendar-events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: newEventDate,
+          type: newEventType,
+          title: newEventTitle,
+          replacementDayOfWeek: newEventType === 'makeup' ? Number(newEventReplacementDay) : undefined
+        })
+      });
+
+      if (res.ok) {
+        showPopup('კალენდრის მოვლენა წარმატებით დაემატა!', 'success');
+        setNewEventDate('');
+        setNewEventTitle('');
+        fetchCalendarEvents();
+      } else {
+        const errData = await res.json();
+        showPopup(errData.message || 'დამატება ვერ მოხერხდა', 'error');
+      }
+    } catch (err) {
+      showPopup('სერვერთან დაკავშირება ვერ მოხერხდა', 'error');
+    } finally {
+      setAddingEvent(false);
+    }
+  };
+
+  const handleDeleteCalendarEvent = async (id: string, dateStr: string) => {
+    if (!confirm(`ნამდვილად გსურთ ${dateStr} მოვლენის წაშლა?`)) return;
+    try {
+      const res = await fetch(`/api/calendar-events?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        showPopup('მოვლენა წაიშალა!', 'success');
+        fetchCalendarEvents();
+      } else {
+        showPopup('წაშლა ვერ მოხერხდა', 'error');
+      }
+    } catch (err) {
+      showPopup('შეცდომა წაშლისას', 'error');
+    }
+  };
+
   // Load calendar when class selection changes
   useEffect(() => {
     if (!selectedClassId) {
@@ -517,6 +596,27 @@ const AdminCalendarManager: React.FC<AdminCalendarManagerProps> = ({ teachers, c
               </div>
 
               <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowHolidaysModal(true)}
+                  style={{
+                    padding: '10px 16px',
+                    borderRadius: '12px',
+                    border: '1px solid #cbd5e1',
+                    background: '#f1f5f9',
+                    color: '#0f172a',
+                    fontWeight: 700,
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                  title="დასვენების დღეების და აღდგენების მართვა"
+                >
+                  📅 დასვენების დღეები და აღდგენები {calendarEventsList.length > 0 ? `(${calendarEventsList.length})` : ''}
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setShowAvailabilityModal(true)}
@@ -747,6 +847,173 @@ const AdminCalendarManager: React.FC<AdminCalendarManagerProps> = ({ teachers, c
               >
                 {savingAvail ? 'ინახება...' : 'შენახვა'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Holidays & Makeup Days Modal */}
+      {showHolidaysModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: '#ffffff', borderRadius: '24px', padding: '28px', maxWidth: '750px', width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 900, color: '#0f172a' }}>📅 დასვენების დღეების და აღდგენების სია</h3>
+              <button onClick={() => setShowHolidaysModal(false)} style={{ border: 'none', background: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748b' }}>✕</button>
+            </div>
+
+            {/* Form to add a new event */}
+            <form onSubmit={handleAddCalendarEvent} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '16px', marginBottom: '24px' }}>
+              <h4 style={{ margin: '0 0 12px 0', fontSize: '15px', fontWeight: 800, color: '#1e293b' }}>➕ ახალი დღის დამატება</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '12px' }}>
+                <div>
+                  <label className="admin-label" style={{ fontSize: '12px' }}>თარიღი:</label>
+                  <input
+                    type="date"
+                    className="admin-input"
+                    value={newEventDate}
+                    onChange={(e) => setNewEventDate(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="admin-label" style={{ fontSize: '12px' }}>ტიპი:</label>
+                  <select
+                    className="admin-input"
+                    value={newEventType}
+                    onChange={(e) => setNewEventType(e.target.value as 'holiday' | 'makeup')}
+                  >
+                    <option value="holiday">🔴 დასვენების დღე</option>
+                    <option value="makeup">🔵 აღდგენის დღე</option>
+                  </select>
+                </div>
+
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label className="admin-label" style={{ fontSize: '12px' }}>დასახელება (მიზეზი / აღწერა):</label>
+                  <input
+                    type="text"
+                    className="admin-input"
+                    placeholder="მაგ. საახალწლო უქმეები / ორშაბათის გაკვეთილების აღდგენა"
+                    value={newEventTitle}
+                    onChange={(e) => setNewEventTitle(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {newEventType === 'makeup' && (
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <label className="admin-label" style={{ fontSize: '12px' }}>რომელი დღის ცხრილი გავრცელდეს?</label>
+                    <select
+                      className="admin-input"
+                      value={newEventReplacementDay}
+                      onChange={(e) => setNewEventReplacementDay(Number(e.target.value))}
+                    >
+                      <option value={0}>ორშაბათის ცხრილი</option>
+                      <option value={1}>სამშაბათის ცხრილი</option>
+                      <option value={2}>ოთხშაბათის ცხრილი</option>
+                      <option value={3}>ხუთშაბათის ცხრილი</option>
+                      <option value={4}>პარასკევის ცხრილი</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="submit"
+                  disabled={addingEvent}
+                  style={{
+                    padding: '8px 20px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    background: '#2563eb',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    fontSize: '13px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {addingEvent ? 'ემატება...' : '➕ დამატება'}
+                </button>
+              </div>
+            </form>
+
+            {/* List of registered events */}
+            <h4 style={{ margin: '0 0 12px 0', fontSize: '15px', fontWeight: 800, color: '#1e293b' }}>
+              არსებული მოვლენები ({calendarEventsList.length})
+            </h4>
+
+            {loadingEvents ? (
+              <p style={{ color: '#64748b', fontSize: '14px' }}>იტვირთება...</p>
+            ) : calendarEventsList.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px', color: '#64748b', background: '#f8fafc', borderRadius: '12px' }}>
+                ჯერ არ არის დამატებული დასვენების ან აღდგენის დღეები.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {calendarEventsList.map((evt) => (
+                  <div
+                    key={evt._id || evt.event_date}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '12px 16px',
+                      borderRadius: '12px',
+                      background: evt.event_type === 'holiday' ? '#fef2f2' : '#f0f9ff',
+                      border: evt.event_type === 'holiday' ? '1px solid #fecaca' : '1px solid #bae6fd',
+                      gap: '12px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+                      <span style={{
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        background: evt.event_type === 'holiday' ? '#ef4444' : '#0284c7',
+                        color: '#ffffff'
+                      }}>
+                        {evt.event_type === 'holiday' ? '🔴 დასვენება' : '🔵 აღდგენა'}
+                      </span>
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: '14px', color: '#0f172a' }}>
+                          {evt.title} ({evt.event_date})
+                        </div>
+                        {evt.event_type === 'makeup' && evt.replacement_day_of_week !== undefined && (
+                          <div style={{ fontSize: '12px', color: '#0369a1', marginTop: '2px' }}>
+                            იმოქმედებს {days[evt.replacement_day_of_week]}ს ცხრილი
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleDeleteCalendarEvent(evt._id, evt.event_date)}
+                      style={{
+                        background: '#fee2e2',
+                        border: '1px solid #fca5a5',
+                        color: '#991b1b',
+                        borderRadius: '8px',
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                      title="წაშლა"
+                    >
+                      <TrashIcon size={14} /> წაშლა
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+              <button onClick={() => setShowHolidaysModal(false)} className="admin-cancel-btn">დახურვა</button>
             </div>
           </div>
         </div>
