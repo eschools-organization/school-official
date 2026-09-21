@@ -16,8 +16,8 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SERVER_PORT }}
           script: |
-            cd /var/www/html
+            cd /var/www/html/bg
             git pull origin main
             npm install
             npm run build
-            pm2 restart myapp
+            pm2 restart bg
