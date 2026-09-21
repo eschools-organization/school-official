@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb, findGrades } from "@/lib/db";
 import { ObjectId } from "mongodb";
+import { getCachedOrFetch } from "@/lib/cache";
 
 export async function GET(req: NextRequest) {
   const classID = req.nextUrl.searchParams.get("class_id");
@@ -45,6 +46,10 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const grades = await findGrades(db, filter, { year, date });
+  const cacheKey = `class_grades_${classID}_${subjectID || ""}_${year || ""}_${date || ""}_${pointType || ""}_${lessonNum || ""}`;
+  const grades = await getCachedOrFetch(cacheKey, 30000, async () => {
+    return findGrades(db, filter, { year, date });
+  });
+
   return NextResponse.json(grades);
 }

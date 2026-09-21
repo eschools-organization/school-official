@@ -246,17 +246,15 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                     ? `/api/student/grade/${match[1]}?parallel=${encodeURIComponent(match[2])}`
                     : '/api/student/all';
 
-                const [gradesRes, studentsRes, allStudentsRes, subjectsRes] = await Promise.all([
+                const [gradesRes, studentsRes, subjectsRes] = await Promise.all([
                     fetch(gradesUrl),
                     fetch(studentsUrl),
-                    fetch('/api/student/all'),
                     fetch('/api/subjects')
                 ]);
 
-                const [gradesData, studentsData, allStudentsData, subjectsData] = await Promise.all([
+                const [gradesData, studentsData, subjectsData] = await Promise.all([
                     gradesRes.json(),
                     studentsRes.json(),
-                    allStudentsRes.json(),
                     subjectsRes.json()
                 ]);
 
@@ -279,23 +277,39 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                     ? (match ? studentsData : studentsData.filter((s: any) => s.classInfo && s.classInfo._id === classId))
                     : [];
 
-                if (Array.isArray(fetchedGrades) && Array.isArray(allStudentsData)) {
+                if (Array.isArray(fetchedGrades)) {
                     const existingStudentIds = new Set(classStudents.map((s: any) => s._id ? s._id.toString() : ''));
-                    const allStudentsMap = new Map(allStudentsData.map((s: any) => [s._id ? s._id.toString() : '', s]));
+                    const missingStudentIds = Array.from(
+                        new Set(
+                            fetchedGrades
+                                .map((g: Grade) => g.student_id ? g.student_id.toString() : '')
+                                .filter((sid: string) => sid && !existingStudentIds.has(sid))
+                        )
+                    );
 
-                    fetchedGrades.forEach((g: Grade) => {
-                        if (g.student_id) {
-                            const sidStr = g.student_id.toString();
-                            if (!existingStudentIds.has(sidStr) && allStudentsMap.has(sidStr)) {
-                                const transferredStudent = allStudentsMap.get(sidStr);
-                                classStudents.push({
-                                    ...transferredStudent,
-                                    isTransferred: true
-                                });
-                                existingStudentIds.add(sidStr);
+                    if (missingStudentIds.length > 0) {
+                        try {
+                            const allRes = await fetch('/api/student/all');
+                            if (allRes.ok) {
+                                const allStudentsData = await allRes.json();
+                                if (Array.isArray(allStudentsData)) {
+                                    const allStudentsMap = new Map(allStudentsData.map((s: any) => [s._id ? s._id.toString() : '', s]));
+                                    missingStudentIds.forEach((sidStr: string) => {
+                                        if (allStudentsMap.has(sidStr)) {
+                                            const transferredStudent = allStudentsMap.get(sidStr);
+                                            classStudents.push({
+                                                ...transferredStudent,
+                                                isTransferred: true
+                                            });
+                                            existingStudentIds.add(sidStr);
+                                        }
+                                    });
+                                }
                             }
+                        } catch (e) {
+                            console.error('Failed to fetch transferred student details:', e);
                         }
-                    });
+                    }
                 }
 
                 setStudents(classStudents);

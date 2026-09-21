@@ -173,20 +173,34 @@ export async function findGrades(
     collectionName = getGradesCollectionName(filter.date);
   }
 
-  if (!collectionName) {
-    collectionName = "grades";
+  if (collectionName) {
+    ensureIndexes(db, collectionName).catch(() => {});
+    let results = await db.collection(collectionName).find(queryFilter).sort({ date: 1 }).toArray();
+    if (results.length === 0 && collectionName !== "grades") {
+      ensureIndexes(db, "grades").catch(() => {});
+      results = await db.collection("grades").find(queryFilter).sort({ date: 1 }).toArray();
+    }
+    return results;
   }
 
-  ensureIndexes(db, collectionName).catch(() => {});
+  // If no specific collection specified, query ALL grade collections in parallel
+  const collectionNames = await getGradesCollectionNames(db);
+  await Promise.all(collectionNames.map((name) => ensureIndexes(db, name).catch(() => {})));
 
-  let results = await db.collection(collectionName).find(queryFilter).sort({ date: 1 }).toArray();
+  const resultsArr = await Promise.all(
+    collectionNames.map((name) => db.collection(name).find(queryFilter).sort({ date: 1 }).toArray())
+  );
 
-  if (results.length === 0 && collectionName !== "grades") {
-    ensureIndexes(db, "grades").catch(() => {});
-    results = await db.collection("grades").find(queryFilter).sort({ date: 1 }).toArray();
+  const seenMap = new Map<string, any>();
+  for (const list of resultsArr) {
+    for (const item of list) {
+      seenMap.set(item._id.toString(), item);
+    }
   }
 
-  return results;
+  const allGrades = Array.from(seenMap.values());
+  allGrades.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  return allGrades;
 }
 
 const indexedCollections = new Set<string>();
@@ -197,6 +211,9 @@ export async function ensureIndexes(db: any, collectionName: string) {
   try {
     // Idempotent compound index creation for maximum query speed
     await Promise.all([
+      db.collection(collectionName).createIndex({ class_id: 1, date: 1 }),
+      db.collection(collectionName).createIndex({ class_id: 1, student_id: 1 }),
+      db.collection(collectionName).createIndex({ student_id: 1, class_id: 1, date: 1 }),
       db.collection(collectionName).createIndex({ student_id: 1, class_id: 1, subject_id: 1, date: 1, lesson_num: 1 }),
       db.collection(collectionName).createIndex({ class_id: 1, subject_id: 1, date: 1 }),
       db.collection(collectionName).createIndex({ student_id: 1, date: 1 }),

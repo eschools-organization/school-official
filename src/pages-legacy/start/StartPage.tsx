@@ -33,7 +33,8 @@ const StartPage: React.FC = () => {
             if (loginDataStr) {
                 if (validateSession()) {
                     const loginData = JSON.parse(loginDataStr);
-                    navigate(`/${loginData.role}`, { replace: true });
+                    const route = (loginData.role === 'superadmin' || loginData.role === 'resource_center') ? '/admin' : `/${loginData.role}`;
+                    navigate(route, { replace: true });
                 } else {
                     clearAuthSession();
                 }
@@ -74,14 +75,16 @@ const StartPage: React.FC = () => {
                 setLoginOpen(false);
                 
                 clearAuthSession();
-                localStorage.setItem('login', JSON.stringify({ role: data.role || role, user_ID, loginTime: Date.now() }));
+                const activeRole = data.role || role;
+                localStorage.setItem('login', JSON.stringify({ role: activeRole, user_ID, loginTime: Date.now() }));
                 
                 if (role === 'student' && data.user_ID && data.class_id) {
                     localStorage.setItem('studentId', data.user_ID);
                     localStorage.setItem('classId', data.class_id);
                 }
                 
-                navigate(`/${role}`, { replace: true });
+                const targetRoute = (activeRole === 'superadmin' || activeRole === 'resource_center' || role === 'admin') ? '/admin' : `/${role}`;
+                navigate(targetRoute, { replace: true });
             } else {
                 const errorData = await res.json();
                 setInfoModal({ isOpen: true, message: errorData.message || 'ავტორიზაცია ვერ მოხერხდა', isSuccess: false });

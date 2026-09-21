@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
 
     const result = await collection.deleteMany(filter);
 
-    invalidateCache(["student_grades_", "top_students_api", "class_stats_"]);
+    invalidateCache(["student_grades_", "top_students_api", "class_stats_", "class_grades_"]);
 
     return NextResponse.json({
       message: `${date} თარიღის მონაცემები წარმატებით წაიშალა!`,

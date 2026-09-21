@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    invalidateCache(["student_grades_", "top_students_api", "class_stats_"]);
+    invalidateCache(["student_grades_", "top_students_api", "class_stats_", "class_grades_"]);
 
     return NextResponse.json({ message: "ნიშნები წარმატებით შეინახა!" });
   } catch (error) {
