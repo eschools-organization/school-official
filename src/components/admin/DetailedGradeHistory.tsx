@@ -735,7 +735,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span style={{ width: '16px', height: '16px', background: '#84c4cb', border: '1px solid #5eead4', borderRadius: '4px' }}></span>
-                            <span style={{ fontSize: '13px', fontWeight: 700, color: subTextColor }}>აღრიცხვა</span>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: subTextColor }}>აღრიცხვა / საკლასო </span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span style={{ width: '16px', height: '16px', background: '#f4978e', border: '1px solid #f87171', borderRadius: '4px' }}></span>

@@ -863,29 +863,15 @@ const Teacher: React.FC = () => {
           className="admin-page-bg-glow"
           style={{ background: `radial-gradient(circle at center, ${selectedColor}26 0%, transparent 70%)` }}
         />
-        <div style={{ position: 'fixed', top: '15px', right: '15px', display: 'flex', gap: '10px', zIndex: 100, alignItems: 'center' }}>
+        <div className="admin-header-actions">
           <ColorPalette />
           <button
             onClick={() => setIsPassModalOpen(true)}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '12px',
-              background: '#1e293b',
-              border: '1px solid #334155',
-              color: '#ffffff',
-              fontWeight: 700,
-              fontSize: '13px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-              transition: 'all 0.2s'
-            }}
+            className="admin-header-btn"
           >
-            <FaKey size={13} color="#fbbf24" /> <span style={{ color: '#ffffff' }}>პაროლის შეცვლა</span>
+            <FaKey size={13} color="#fbbf24" /> <span>პაროლის შეცვლა</span>
           </button>
-          <button className="logout-btn" onClick={handleLogout} style={{ position: 'static' }}>
+          <button className="admin-header-btn logout" onClick={handleLogout}>
             გამოსვლა
           </button>
         </div>
@@ -1638,7 +1624,7 @@ const Teacher: React.FC = () => {
                       const checked = grades[student._id]?.attendance ?? true;
                       return (
                         <div key={student._id} className="grade-entry-row">
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                          <div className="grade-entry-student">
                             <div style={{
                               width: '38px',
                               height: '38px',
@@ -1654,74 +1640,78 @@ const Teacher: React.FC = () => {
                             }}>
                               {student.surname?.[0] ?? ''}{student.name?.[0] ?? ''}
                             </div>
-                            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600, fontSize: '15px' }}>
+                            <div className="grade-entry-name">
                               {student.surname} {student.name}
                             </div>
                           </div>
 
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                            <label style={switchStyle}>
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={(e) => handleAttendanceChange(student._id, e.target.checked)}
-                                style={{ display: 'none' }}
-                              />
-                              <span style={checked ? sliderCheckedStyle : sliderStyle}>
-                                <span style={checked ? circleCheckedStyle : circleStyle}></span>
-                              </span>
-                            </label>
+                          <div className="grade-entry-actions">
+                            <div className="grade-entry-attendance-wrap">
+                              <span className="mobile-attendance-label">დასწრება</span>
+                              <label style={switchStyle}>
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => handleAttendanceChange(student._id, e.target.checked)}
+                                  style={{ display: 'none' }}
+                                />
+                                <span style={checked ? sliderCheckedStyle : sliderStyle}>
+                                  <span style={checked ? circleCheckedStyle : circleStyle}></span>
+                                </span>
+                              </label>
+                            </div>
 
+                            <div className="grade-entry-point-wrap">
+                              {isCommentOnly ? (
+                                <input
+                                  type="text"
+                                  value={grades[student._id]?.comment ?? (grades[student._id]?.point !== "განმავითარებელი" ? grades[student._id]?.point ?? "" : "")}
+                                  onChange={(e) => handleCommentChange(student._id, e.target.value)}
+                                  placeholder="დაწერეთ განმავითარებელი კომენტარი..."
+                                  disabled={!checked}
+                                  className="admin-input"
+                                  style={{
+                                    padding: '8px 12px',
+                                    fontSize: '13px',
+                                    opacity: checked ? 1 : 0.5,
+                                    width: '100%',
+                                    maxWidth: '280px',
+                                    background: '#ffffff',
+                                    border: '1.5px solid #cbd5e1',
+                                    color: '#0f172a',
+                                    fontWeight: 600,
+                                    borderRadius: '8px',
+                                    boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)'
+                                  }}
+                                />
+                              ) : isProjectSubject ? (
+                                <select
+                                  value={grades[student._id]?.point ?? ''}
+                                  onChange={(e) => handlePointChange(student._id, e.target.value)}
+                                  disabled={!checked}
+                                  className="admin-select"
+                                  style={{ padding: '8px 12px', fontSize: '14px', opacity: checked ? 1 : 0.5, width: '100%' }}
+                                >
+                                  <option value="">აირჩიეთ...</option>
+                                  <option value="ჩთ">ჩთ (ჩათვლილი)</option>
+                                  <option value="არ ჩთ">არ ჩთ (არაჩათვლილი)</option>
+                                </select>
+                              ) : (
+                                <select
+                                  value={grades[student._id]?.point ?? ''}
+                                  onChange={(e) => handlePointChange(student._id, e.target.value)}
+                                  disabled={!checked}
+                                  className="admin-select"
+                                  style={{ padding: '8px 12px', fontSize: '14px', opacity: checked ? 1 : 0.5, width: '100%' }}
+                                >
+                                  <option value="">აირჩიეთ...</option>
+                                  {Array.from({ length: 11 }, (_, n) => n).map((n) => (
+                                    <option key={n} value={n}>{n}</option>
+                                  ))}
+                                </select>
+                              )}
+                            </div>
                           </div>
-
-                          {isCommentOnly ? (
-                            <input
-                              type="text"
-                              value={grades[student._id]?.comment ?? (grades[student._id]?.point !== "განმავითარებელი" ? grades[student._id]?.point ?? "" : "")}
-                              onChange={(e) => handleCommentChange(student._id, e.target.value)}
-                              placeholder="დაწერეთ განმავითარებელი კომენტარი..."
-                              disabled={!checked}
-                              className="admin-input"
-                              style={{
-                                padding: '8px 12px',
-                                fontSize: '13px',
-                                opacity: checked ? 1 : 0.5,
-                                width: '100%',
-                                maxWidth: '280px',
-                                background: '#ffffff',
-                                border: '1.5px solid #cbd5e1',
-                                color: '#0f172a',
-                                fontWeight: 600,
-                                borderRadius: '8px',
-                                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)'
-                              }}
-                            />
-                          ) : isProjectSubject ? (
-                            <select
-                              value={grades[student._id]?.point ?? ''}
-                              onChange={(e) => handlePointChange(student._id, e.target.value)}
-                              disabled={!checked}
-                              className="admin-select"
-                              style={{ padding: '8px 12px', fontSize: '14px', opacity: checked ? 1 : 0.5 }}
-                            >
-                              <option value="">აირჩიეთ...</option>
-                              <option value="ჩთ">ჩთ (ჩათვლილი)</option>
-                              <option value="არ ჩთ">არ ჩთ (არაჩათვლილი)</option>
-                            </select>
-                          ) : (
-                            <select
-                              value={grades[student._id]?.point ?? ''}
-                              onChange={(e) => handlePointChange(student._id, e.target.value)}
-                              disabled={!checked}
-                              className="admin-select"
-                              style={{ padding: '8px 12px', fontSize: '14px', opacity: checked ? 1 : 0.5 }}
-                            >
-                              <option value="">აირჩიეთ...</option>
-                              {Array.from({ length: 11 }, (_, n) => n).map((n) => (
-                                <option key={n} value={n}>{n}</option>
-                              ))}
-                            </select>
-                          )}
                         </div>
                       );
                     })}

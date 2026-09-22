@@ -21,7 +21,49 @@
     position: relative;
     overflow-x: hidden;
     color: #0f172a;
-    padding-top: 100px;
+    padding-top: 90px;
+}
+
+/* Top Header Actions (Theme, Password, Logout) */
+.admin-header-actions {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 1000;
+}
+
+.admin-header-btn {
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #ffffff;
+    padding: 10px 18px;
+    border-radius: 12px;
+    font-weight: 800;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.admin-header-btn:hover {
+    background: #334155;
+    transform: translateY(-1px);
+}
+
+.admin-header-btn.logout {
+    background: #dc2626;
+    border-color: #ef4444;
+}
+
+.admin-header-btn.logout:hover {
+    background: #b91c1c;
 }
 
 .admin-page-bg-glow {
@@ -317,7 +359,8 @@
     background: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 28px;
-    overflow: hidden;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
 }
 
@@ -325,6 +368,7 @@
     width: 100%;
     border-collapse: collapse;
     color: #0f172a;
+    min-width: 520px;
 }
 
 .admin-table thead {
@@ -456,16 +500,16 @@
 /* Sub-view Header Styling */
 .admin-view-header {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
     width: 100%;
     margin-bottom: 30px;
-    gap: 20px;
+    gap: 16px;
     flex-wrap: wrap;
 }
 
 .admin-view-title {
-    font-size: 30px;
+    font-size: clamp(20px, 4vw, 30px);
     font-weight: 900;
     margin: 0;
     color: #0f172a;
@@ -473,6 +517,8 @@
     -webkit-background-clip: unset;
     -webkit-text-fill-color: #0f172a;
     text-shadow: none;
+    min-width: 0;
+    word-break: break-word;
 }
 
 .admin-view-container {
@@ -712,44 +758,132 @@
     padding: 8px 16px 16px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
 }
 
 .grade-entry-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 100px 160px;
-    gap: 16px;
+    display: flex;
     align-items: center;
-    padding: 14px 16px;
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 18px;
+    border-radius: 16px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+    transition: all 0.2s ease;
 }
 
 .grade-entry-row:hover {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.12);
+    border-color: #cbd5e1;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.05);
 }
 
-@media (max-width: 600px) {
+.grade-entry-student {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    flex: 1;
+}
+
+.grade-entry-name {
+    font-weight: 700;
+    font-size: 15px;
+    color: #0f172a;
+    word-break: break-word;
+}
+
+.grade-entry-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+}
+
+.grade-entry-attendance-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.mobile-attendance-label {
+    display: none;
+}
+
+.grade-entry-point-wrap {
+    width: 160px;
+}
+
+@media (max-width: 640px) {
     .grade-entry-header {
         display: none;
     }
+
     .grade-entry-row {
-        grid-template-columns: minmax(0, 1fr) 60px 130px;
+        flex-direction: column;
+        align-items: stretch;
         gap: 10px;
-        padding: 12px;
+        padding: 14px;
+        border-radius: 16px;
     }
-    .grade-entry-list {
-        padding: 8px 12px 12px;
+
+    .grade-entry-student {
+        width: 100%;
+    }
+
+    .grade-entry-name {
+        font-size: 15px;
+        font-weight: 800;
+        white-space: normal;
+        word-break: break-word;
+        color: #0f172a;
+    }
+
+    .grade-entry-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        width: 100%;
+        padding-top: 10px;
+        border-top: 1px solid #f1f5f9;
+    }
+
+    .mobile-attendance-label {
+        display: inline-block;
+        font-size: 13px;
+        font-weight: 700;
+        color: #64748b;
+    }
+
+    .grade-entry-point-wrap {
+        width: auto;
+        min-width: 130px;
     }
 }
 
 /* ----- Mobile responsive layout ----- */
 @media (max-width: 768px) {
     .admin-page-wrapper {
-        padding-top: 110px;
+        padding-top: 16px;
+    }
+
+    .admin-header-actions {
+        position: relative;
+        top: 0;
+        right: 0;
+        justify-content: center;
+        width: 100%;
+        gap: 8px;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+    }
+
+    .admin-header-btn {
+        padding: 8px 14px;
+        font-size: 12px;
+        border-radius: 10px;
     }
 
     .admin-page-content {
@@ -803,22 +937,33 @@
     }
 
     .admin-list-container {
-        border-radius: 20px;
+        border-radius: 18px;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
     .admin-view-header {
         margin-bottom: 16px;
         gap: 12px;
+        justify-content: flex-start;
+        align-items: center;
+        width: 100%;
     }
 
     .admin-view-title {
-        font-size: 24px;
+        font-size: clamp(18px, 4.5vw, 22px);
+        flex: 1 1 auto;
+        min-width: 0;
+        word-break: break-word;
     }
 
     .admin-table th,
     .admin-table td {
-        padding: 14px 12px;
-        font-size: 14px;
+        padding: 12px 10px;
+        font-size: 13px;
+        white-space: nowrap;
     }
 
     .admin-table-wrapper {
@@ -841,6 +986,8 @@
     .admin-back-btn {
         padding: 8px 14px;
         font-size: 12px;
+        flex-shrink: 0;
+        white-space: nowrap;
     }
 
     /* Schedule grid: keep columns but allow horizontal scroll on phones */
@@ -1066,6 +1213,34 @@
 
 .theme-dark .admin-table tr:hover {
     background-color: #1f2937 !important;
+}
+
+.theme-dark .admin-header-btn {
+    background-color: #1f2937 !important;
+    border-color: #374151 !important;
+    color: #ffffff !important;
+}
+
+.theme-dark .admin-header-btn.logout {
+    background-color: #991b1b !important;
+    border-color: #b91c1c !important;
+}
+
+.theme-dark .grade-entry-row {
+    background: #111827 !important;
+    border-color: #1f2937 !important;
+}
+
+.theme-dark .grade-entry-name {
+    color: #ffffff !important;
+}
+
+.theme-dark .grade-entry-actions {
+    border-top-color: #1f2937 !important;
+}
+
+.theme-dark .mobile-attendance-label {
+    color: #94a3b8 !important;
 }
 
 

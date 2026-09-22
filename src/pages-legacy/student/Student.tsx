@@ -224,10 +224,12 @@ const Student: React.FC = () => {
                 className="admin-page-bg-glow"
                 style={{ background: `radial-gradient(circle at center, ${selectedColor}26 0%, transparent 70%)` }}
             />
-            <ColorPalette />
-            <button className="logout-btn" onClick={handleLogout}>
-                <FaSignOutAltIcon /> გამოსვლა
-            </button>
+            <div className="admin-header-actions">
+                <ColorPalette />
+                <button className="admin-header-btn logout" onClick={handleLogout}>
+                    <FaSignOutAltIcon /> გამოსვლა
+                </button>
+            </div>
 
             <div className="admin-page-content">
                 {/* Header Banner */}
