@@ -157,7 +157,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
     const [mobileViewMode, setMobileViewMode] = useState<'cards' | 'matrix'>('matrix');
 
     const sortedStudents = React.useMemo(() => {
-        return [...students].sort((a, b) => `${a.name || ''} ${a.surname || ''}`.localeCompare(`${b.name || ''} ${b.surname || ''}`, 'ka'));
+        return [...students].sort((a, b) => `${a.surname || ''} ${a.name || ''}`.localeCompare(`${b.surname || ''} ${b.name || ''}`, 'ka'));
     }, [students]);
 
     const [editModalOpen, setEditModalOpen] = useState(false);
@@ -316,7 +316,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                     }
                 }
 
-                classStudents.sort((a: any, b: any) => `${a.name || ''} ${a.surname || ''}`.localeCompare(`${b.name || ''} ${b.surname || ''}`, 'ka'));
+                classStudents.sort((a: any, b: any) => `${a.surname || ''} ${a.name || ''}`.localeCompare(`${b.surname || ''} ${b.name || ''}`, 'ka'));
                 setStudents(classStudents);
                 if (Array.isArray(subjectsData)) {
                     subjectsData.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '', 'ka'));
@@ -940,7 +940,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                                         <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                                                     </svg>
                                                     <span style={{ fontSize: '14px', whiteSpace: 'nowrap' }}>
-                                                        {student.name} {student.surname}
+                                                        {student.surname} {student.name}
                                                         {(student as any).isTransferred && (
                                                             <span style={{
                                                                 marginLeft: '6px',
@@ -1139,7 +1139,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                 </button>
                             </div>
                             <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#64748b' }}>
-                                {selectedCell.student.name} {selectedCell.student.surname} — {formatDate(selectedCell.date)} ({selectedCell.date})
+                                {selectedCell.student.surname} {selectedCell.student.name} — {formatDate(selectedCell.date)} ({selectedCell.date})
                             </p>
 
                             {!canUserEditDate && (

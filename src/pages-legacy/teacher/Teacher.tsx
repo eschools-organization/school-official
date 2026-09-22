@@ -1087,7 +1087,7 @@ const Teacher: React.FC = () => {
         const classStudents = (match
           ? fetched
           : fetched.filter((s: any) => s.classInfo && s.classInfo._id === id))
-          .sort((a: any, b: any) => `${a.name || ''} ${a.surname || ''}`.localeCompare(`${b.name || ''} ${b.surname || ''}`, 'ka'));
+          .sort((a: any, b: any) => `${a.surname || ''} ${a.name || ''}`.localeCompare(`${b.surname || ''} ${b.name || ''}`, 'ka'));
         setStudents(classStudents);
         // Initialize grades state
         const initialGrades: {
@@ -1333,6 +1333,32 @@ const Teacher: React.FC = () => {
       }
     };
 
+    // Find subjects for this teacher in this class
+    const classObj = teachesClasses.find((cls: any) => cls._id === id);
+    let teacherSubjects: any[] = [];
+    if (classObj && Array.isArray(classObj.subjects)) {
+      const loginData = JSON.parse(localStorage.getItem("login") || "{}");
+      const user_ID = loginData.user_ID;
+      const teacher = allTeachers.find((t: any) => t.user_ID === user_ID);
+      if (teacher) {
+        teacherSubjects = classObj.subjects.filter(
+          (subj: any) => 
+            subj.teacher_id === teacher._id && 
+            (subj.hours_per_week === undefined || subj.hours_per_week > 0),
+        );
+      }
+    }
+
+    // Auto-select subject if only 1 subject taught by teacher in this class and none selected
+    useEffect(() => {
+      if (!selectedSubject && teacherSubjects.length === 1 && teacherSubjects[0].subject_id) {
+        setSelectedSubject(teacherSubjects[0].subject_id);
+      } else if (!selectedSubject && urlSubjectName) {
+        const found = allSubjects.find((s: any) => s.name?.toLowerCase() === urlSubjectName.toLowerCase());
+        if (found) setSelectedSubject(found._id);
+      }
+    }, [teacherSubjects, selectedSubject, urlSubjectName, allSubjects]);
+
     if (loading)
       return (
         <div style={{ color: "white", textAlign: "center", marginTop: "40px" }}>
@@ -1377,32 +1403,6 @@ const Teacher: React.FC = () => {
       ...circleStyle,
       transform: "translateX(22px)",
     };
-
-    // Find subjects for this teacher in this class
-    const classObj = teachesClasses.find((cls: any) => cls._id === id);
-    let teacherSubjects: any[] = [];
-    if (classObj && Array.isArray(classObj.subjects)) {
-      const loginData = JSON.parse(localStorage.getItem("login") || "{}");
-      const user_ID = loginData.user_ID;
-      const teacher = allTeachers.find((t: any) => t.user_ID === user_ID);
-      if (teacher) {
-        teacherSubjects = classObj.subjects.filter(
-          (subj: any) => 
-            subj.teacher_id === teacher._id && 
-            (subj.hours_per_week === undefined || subj.hours_per_week > 0),
-        );
-      }
-    }
-
-    // Auto-select subject if only 1 subject taught by teacher in this class and none selected
-    useEffect(() => {
-      if (!selectedSubject && teacherSubjects.length === 1 && teacherSubjects[0].subject_id) {
-        setSelectedSubject(teacherSubjects[0].subject_id);
-      } else if (!selectedSubject && urlSubjectName) {
-        const found = allSubjects.find((s: any) => s.name?.toLowerCase() === urlSubjectName.toLowerCase());
-        if (found) setSelectedSubject(found._id);
-      }
-    }, [teacherSubjects, selectedSubject, urlSubjectName, allSubjects]);
 
     const activeSubjectName = allSubjects.find((s: any) => s._id === selectedSubject)?.name || urlSubjectName;
 
@@ -1650,10 +1650,10 @@ const Teacher: React.FC = () => {
                               color: 'white',
                               flexShrink: 0,
                             }}>
-                              {student.name?.[0] ?? ''}{student.surname?.[0] ?? ''}
+                              {student.surname?.[0] ?? ''}{student.name?.[0] ?? ''}
                             </div>
                             <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600, fontSize: '15px' }}>
-                              {student.name} {student.surname}
+                              {student.surname} {student.name}
                             </div>
                           </div>
 
@@ -1909,6 +1909,7 @@ const Teacher: React.FC = () => {
           });
         }
 
+        classStudents.sort((a: any, b: any) => `${a.surname || ''} ${a.name || ''}`.localeCompare(`${b.surname || ''} ${b.name || ''}`, 'ka'));
         setStudents(classStudents);
         setGrades(Array.isArray(gradesData) ? gradesData : []);
 
@@ -2110,7 +2111,7 @@ const Teacher: React.FC = () => {
                     return (
                       <tr key={student._id}>
                         <td style={{ textAlign: 'center', opacity: 0.5 }}>{index + 1}</td>
-                        <td style={{ fontWeight: 600 }}>{student.name} {student.surname}</td>
+                        <td style={{ fontWeight: 600 }}>{student.surname} {student.name}</td>
                         <td style={{ textAlign: "center" }}>
                           <span className={`status-badge ${stats.averageScore >= 9 ? 'high' : stats.averageScore >= 7 ? 'medium' : 'low'}`}>
                             {stats.averageScore.toFixed(1)}

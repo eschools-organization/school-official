@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+ცimport { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 const allowedOrigins = ['http://localhost:3001', 'http://localhost:3000']
