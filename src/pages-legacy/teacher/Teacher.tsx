@@ -910,7 +910,7 @@ const Teacher: React.FC = () => {
       if (searchParams.get("lesson_num")) query.set("lesson_num", searchParams.get("lesson_num")!);
       const qStr = query.toString() ? `?${query.toString()}` : '';
 
-      if (label === "ნიშნის შეტანა") {
+      if (label === "მოსწავლეთა დასწრების და შეფასების აღრიცხვა" || label === "ნიშნის შეტანა") {
         navigate(`/teacher/teach/${id}/grade${qStr}`);
       } else if (label === "ისტორია") {
         navigate(`/teacher/teach/${id}/history${qStr}`);
@@ -1520,7 +1520,7 @@ const Teacher: React.FC = () => {
                 onChange={(e) => setPointType(Number(e.target.value))}
                 className="admin-select"
               >
-                <option value={2}>აღრიცხვა</option>
+                <option value={2}>აღრიცხვა / საკლასო</option>
                 <option value={1}>საშინაო</option>
                 <option value={3}>შემაჯამებელი</option>
               </select>
@@ -1884,7 +1884,7 @@ const Teacher: React.FC = () => {
         const [studentsRes, allStudentsRes, gradesRes] = await Promise.all([
           fetch(studentsUrl),
           fetch("/api/student/all"),
-          fetch(`/api/grades?class_id=${classId}&subject_id=${selectedSubject}`)
+          fetch(`/api/grades?class_id=${classId}&subject_id=${selectedSubject}&year=${encodeURIComponent(getCurrentAcademicYear())}`)
         ]);
 
         const fetched = await studentsRes.json();
@@ -1895,23 +1895,7 @@ const Teacher: React.FC = () => {
           ? (Array.isArray(fetched) ? fetched : [])
           : (Array.isArray(fetched) ? fetched.filter((s: any) => s.classInfo && s.classInfo._id === classId) : []);
 
-        if (Array.isArray(gradesData) && Array.isArray(allStudentsData)) {
-          const existingStudentIds = new Set(classStudents.map((s: any) => s._id ? s._id.toString() : ''));
-          const allStudentsMap = new Map(allStudentsData.map((s: any) => [s._id ? s._id.toString() : '', s]));
-
-          gradesData.forEach((g: any) => {
-            if (g.student_id) {
-              const sidStr = g.student_id.toString();
-              if (!existingStudentIds.has(sidStr) && allStudentsMap.has(sidStr)) {
-                classStudents.push({
-                  ...allStudentsMap.get(sidStr),
-                  isTransferred: true
-                });
-                existingStudentIds.add(sidStr);
-              }
-            }
-          });
-        }
+        classStudents = classStudents.filter((s: any) => !s.isTransferred && s.status !== 'transferred');
 
         classStudents.sort((a: any, b: any) => `${a.surname || ''} ${a.name || ''}`.localeCompare(`${b.surname || ''} ${b.name || ''}`, 'ka'));
         setStudents(classStudents);

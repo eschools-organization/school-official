@@ -284,8 +284,9 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
             }
 
             try {
-                // Fetch ALL grades for the class (without year restriction) to discover all academic years
-                const gradesUrl = `/api/grades?class_id=${classId}`;
+                // Fetch grades filtered by current/selected academic year for fast performance
+                const targetYear = academicYearFilter || currentAy;
+                const gradesUrl = `/api/grades?class_id=${classId}&year=${encodeURIComponent(targetYear)}`;
 
                 const match = className.match(/^([0-9]+)([ა-ჰ])$/);
                 const studentsUrl = match
@@ -307,56 +308,10 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                 const fetchedGrades: Grade[] = Array.isArray(gradesData) ? gradesData : [];
                 setGrades(fetchedGrades);
 
-                // Auto select the latest academic year that actually HAS grades if current year has no grades
-                const yearsWithGrades = Array.from(
-                    new Set(fetchedGrades.map(g => getAcademicYearFromDate(g.date)).filter(Boolean) as string[])
-                ).sort().reverse();
-
-                if (yearsWithGrades.length > 0) {
-                    const currentYearGrades = fetchedGrades.filter(g => getAcademicYearFromDate(g.date) === currentAy);
-                    if (currentYearGrades.length === 0 && !selectedYear) {
-                        setAcademicYearFilter(yearsWithGrades[0]);
-                    }
-                }
-
                 let classStudents = Array.isArray(studentsData)
                     ? (match ? studentsData : studentsData.filter((s: any) => s.classInfo && s.classInfo._id === classId))
                     : [];
-
-                if (Array.isArray(fetchedGrades)) {
-                    const existingStudentIds = new Set(classStudents.map((s: any) => s._id ? s._id.toString() : ''));
-                    const missingStudentIds = Array.from(
-                        new Set(
-                            fetchedGrades
-                                .map((g: Grade) => g.student_id ? g.student_id.toString() : '')
-                                .filter((sid: string) => sid && !existingStudentIds.has(sid))
-                        )
-                    );
-
-                    if (missingStudentIds.length > 0) {
-                        try {
-                            const allRes = await fetch('/api/student/all');
-                            if (allRes.ok) {
-                                const allStudentsData = await allRes.json();
-                                if (Array.isArray(allStudentsData)) {
-                                    const allStudentsMap = new Map(allStudentsData.map((s: any) => [s._id ? s._id.toString() : '', s]));
-                                    missingStudentIds.forEach((sidStr: string) => {
-                                        if (allStudentsMap.has(sidStr)) {
-                                            const transferredStudent = allStudentsMap.get(sidStr);
-                                            classStudents.push({
-                                                ...transferredStudent,
-                                                isTransferred: true
-                                            });
-                                            existingStudentIds.add(sidStr);
-                                        }
-                                    });
-                                }
-                            }
-                        } catch (e) {
-                            console.error('Failed to fetch transferred student details:', e);
-                        }
-                    }
-                }
+                classStudents = classStudents.filter((s: any) => !s.isTransferred && s.status !== 'transferred');
 
                 classStudents.sort((a: any, b: any) => `${a.surname || ''} ${a.name || ''}`.localeCompare(`${b.surname || ''} ${b.name || ''}`, 'ka'));
                 setStudents(classStudents);
@@ -384,7 +339,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
             }
         };
         fetchData();
-    }, [classId, className]);
+    }, [classId, className, academicYearFilter]);
 
     if (loading) {
         return (
@@ -562,7 +517,8 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
             });
 
             if (res.ok) {
-                const gradesRes = await fetch(`/api/grades?class_id=${classId}`);
+                const targetYear = academicYearFilter || currentAy;
+                const gradesRes = await fetch(`/api/grades?class_id=${classId}&year=${encodeURIComponent(targetYear)}`);
                 const gradesData = await gradesRes.json();
                 if (Array.isArray(gradesData)) {
                     setGrades(gradesData);
@@ -829,23 +785,6 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                 </button>
                             );
                         })}
-                        <button
-                            type="button"
-                            onClick={() => setAcademicYearFilter('all')}
-                            style={{
-                                background: academicYearFilter === 'all' ? '#2e1065' : '#ffffff',
-                                color: academicYearFilter === 'all' ? '#ffffff' : '#2e1065',
-                                border: academicYearFilter === 'all' ? '1.5px solid #2e1065' : '1.5px solid #cbd5e1',
-                                borderRadius: '12px',
-                                padding: '8px 20px',
-                                fontWeight: 800,
-                                fontSize: '14px',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            ყველა წელი
-                        </button>
                     </div>
 
                     {/* Semester Pills */}
@@ -1067,19 +1006,6 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                                     </svg>
                                                     <span style={{ fontSize: '14px', whiteSpace: 'nowrap' }}>
                                                         {student.surname} {student.name}
-                                                        {(student as any).isTransferred && (
-                                                            <span style={{
-                                                                marginLeft: '6px',
-                                                                fontSize: '11px',
-                                                                background: '#fee2e2',
-                                                                color: '#dc2626',
-                                                                padding: '2px 6px',
-                                                                borderRadius: '6px',
-                                                                fontWeight: 700
-                                                            }}>
-                                                                (გადასული)
-                                                            </span>
-                                                        )}
                                                     </span>
                                                 </div>
                                                 <span style={{
@@ -1484,7 +1410,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                         }}
                                     >
                                         <option value={1}>🔵 საშინაო (ლურჯი)</option>
-                                        <option value={2}>🟡 აღრიცხვა (ყვითელი)</option>
+                                        <option value={2}>🟡 აღრიცხვა / საკლასო (ყვითელი)</option>
                                         <option value={3}>🔴 შემაჯამებელი (წითელი)</option>
                                     </select>
                                 </div>
