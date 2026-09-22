@@ -362,7 +362,7 @@ const Teacher: React.FC = () => {
     "main",
   );
   const [historyClassId, setHistoryClassId] = useState<string | null>(null);
-  const [pointType, setPointType] = useState(0); // Default to "აირჩიეთ ტიპი"
+  const [pointType, setPointType] = useState(2); // Default to "აღრიცხვა" (2)
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editGrade, setEditGrade] = useState<any>(null); // grade object
   const [editPoint, setEditPoint] = useState("");
@@ -955,7 +955,7 @@ const Teacher: React.FC = () => {
           </div>
           <div className="admin-grid" style={{ marginTop: '30px', width: '100%', justifyContent: 'center' }}>
             {[
-              { label: "ნიშნის შეტანა", icon: MdAdd },
+              { label: "მოსწავლეთა დასწრების და შეფასების აღრიცხვა", icon: MdAdd },
               { label: "დავალებები", icon: FaTasks },
               { label: "ისტორია", icon: FaHistory },
               { label: "სტატისტიკა", icon: IoStatsChartSharp },
@@ -1027,13 +1027,17 @@ const Teacher: React.FC = () => {
       refetchInterval: 10000
     });
     const [students, setStudents] = useState<any[]>([]);
-    const [gradeType, setGradeType] = useState("საკლასო");
+    const [gradeType, setGradeType] = useState("აღრიცხვა");
     const [grades, setGrades] = useState<{
       [studentId: string]: { attendance: boolean; point: string; comment?: string; excuse_reason?: string };
     }>({});
     const [isProjectToggle, setIsProjectToggle] = useState(false);
     const [lessonNum, setLessonNum] = useState<number>(1);
     const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+      if (!pointType) setPointType(2);
+    }, [pointType]);
 
     useEffect(() => {
       if (urlSubjectId) {
@@ -1162,18 +1166,23 @@ const Teacher: React.FC = () => {
       fetchExistingGrades();
     }, [id, selectedSubject, year, month, day, lessonNum, students]);
 
-    // Memoize allowed days calculation to prevent unnecessary re-renders
-    const allowedDays = React.useMemo(() => {
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-      // Calculate allowed date range (from gradeEntryStartDate to today)
+    // Current year is fixed to current year
+    const currentYear = new Date().getFullYear();
+
+    // Memoize allowed dates calculation to prevent unnecessary re-renders
+    const allowedDatesList = React.useMemo(() => {
       const maxDateObj = new Date();
       maxDateObj.setHours(0, 0, 0, 0);
+
       const minDateObj = gradeEntryStartDate
         ? new Date(gradeEntryStartDate)
         : new Date(maxDateObj);
       minDateObj.setHours(0, 0, 0, 0);
 
-      // Find the class object and its calendar
+      if (minDateObj > maxDateObj) {
+        minDateObj.setTime(maxDateObj.getTime() - 14 * 24 * 60 * 60 * 1000);
+      }
+
       const classObj = teachesClasses.find((cls: any) => cls._id === id);
 
       const hasLessonOnDay = (dayOfWeekIdx: number) => {
@@ -1189,35 +1198,52 @@ const Teacher: React.FC = () => {
         });
       };
 
-      // Helper to check if a date is in range and has a lesson
-      const isDayAllowed = (y: number, m: number, d: number) => {
-        const dateObj = new Date(y, m, d);
-        dateObj.setHours(0, 0, 0, 0);
-        const dateInRange = dateObj >= minDateObj && dateObj <= maxDateObj;
-        if (!dateInRange) return false;
+      const dates: { dateStr: string; year: number; month: number; day: number; label: string }[] = [];
+      const curr = new Date(minDateObj);
 
-        // If teacher ID is not yet loaded, we don't filter by calendar yet
-        if (!currentTeacherId) return true;
+      while (curr <= maxDateObj) {
+        const y = curr.getFullYear();
+        const m = curr.getMonth();
+        const d = curr.getDate();
 
-        const dayOfWeek = dateObj.getDay(); // 0 (Sun) - 6 (Sat)
-        const dayOfWeekIdx = dayOfWeek - 1; // 0 (Mon) - 4 (Fri)
-        if (dayOfWeekIdx < 0 || dayOfWeekIdx > 4) return false;
+        let allowed = true;
+        if (currentTeacherId) {
+          const dayOfWeek = curr.getDay(); // 0 (Sun) - 6 (Sat)
+          const dayOfWeekIdx = dayOfWeek - 1; // 0 (Mon) - 4 (Fri)
+          if (dayOfWeekIdx < 0 || dayOfWeekIdx > 4) {
+            allowed = false;
+          } else {
+            allowed = hasLessonOnDay(dayOfWeekIdx);
+          }
+        }
 
-        return hasLessonOnDay(dayOfWeekIdx);
-      };
+        if (allowed) {
+          const dayFormatted = String(d).padStart(2, '0');
+          const monthFormatted = String(m + 1).padStart(2, '0');
+          const dateStr = `${y}-${monthFormatted}-${dayFormatted}`;
+          const label = `${dayFormatted}.${monthFormatted}`;
+          dates.push({ dateStr, year: y, month: m, day: d, label });
+        }
 
-      // Filter days for dropdown
-      return Array.from({ length: daysInMonth }, (_, i) => i + 1).filter((d) =>
-        isDayAllowed(year, month, d),
-      );
-    }, [year, month, gradeEntryStartDate, currentTeacherId, selectedSubject, teachesClasses, id]);
-
-    // Auto-select the first allowed day if the current selected day is not allowed
-    useEffect(() => {
-      if (allowedDays.length > 0 && !allowedDays.includes(day)) {
-        setDay(allowedDays[0]);
+        curr.setDate(curr.getDate() + 1);
       }
-    }, [allowedDays, day]);
+
+      return dates;
+    }, [gradeEntryStartDate, currentTeacherId, selectedSubject, teachesClasses, id]);
+
+    // Auto-select latest allowed date if the current selected date is not in allowed list
+    useEffect(() => {
+      if (allowedDatesList.length > 0) {
+        const currentDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const exists = allowedDatesList.some((item) => item.dateStr === currentDateStr);
+        if (!exists) {
+          const latest = allowedDatesList[allowedDatesList.length - 1];
+          setYear(latest.year);
+          setMonth(latest.month);
+          setDay(latest.day);
+        }
+      }
+    }, [allowedDatesList, year, month, day]);
 
     const handleAttendanceChange = (studentId: string, checked: boolean) => {
       setGrades((prev) => ({
@@ -1418,7 +1444,7 @@ const Teacher: React.FC = () => {
           </button>
 
           <div className="admin-form-container" style={{ maxWidth: '100%', marginBottom: '40px' }}>
-            <h2 className="admin-form-title">ნიშნის შეტანა</h2>
+            <h2 className="admin-form-title">მოსწავლეთა დასწრების და შეფასების აღრიცხვა</h2>
 
             {activeSubjectName && (
               <div style={{
@@ -1474,50 +1500,27 @@ const Teacher: React.FC = () => {
             </div>
 
             <div className="admin-form-group">
-              <label className="admin-label">წელი:</label>
-              <select
-                value={year}
-                onChange={(e) => setYear(Number(e.target.value))}
-                className="admin-select"
-              >
-                {[year - 1, year, year + 1].map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="admin-form-group">
-              <label className="admin-label">თვე:</label>
-              <select
-                value={month}
-                onChange={(e) => setMonth(Number(e.target.value))}
-                className="admin-select"
-              >
-                {georgianMonths.map((m, idx) => (
-                  <option key={m} value={idx}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="admin-form-group">
-              <label className="admin-label">დღე:</label>
-              {allowedDays.length === 0 ? (
+              <label className="admin-label">თარიღი:</label>
+              {allowedDatesList.length === 0 ? (
                 <div style={{ color: "#ff5252", fontSize: '12px', marginTop: '10px' }}>
                   ქულების ჩაწერა შეუძლებელია
                 </div>
               ) : (
                 <select
-                  value={day}
-                  onChange={(e) => setDay(Number(e.target.value))}
+                  value={`${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`}
+                  onChange={(e) => {
+                    const selected = allowedDatesList.find((item) => item.dateStr === e.target.value);
+                    if (selected) {
+                      setYear(selected.year);
+                      setMonth(selected.month);
+                      setDay(selected.day);
+                    }
+                  }}
                   className="admin-select"
                 >
-                  {allowedDays.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
+                  {allowedDatesList.map((item) => (
+                    <option key={item.dateStr} value={item.dateStr}>
+                      {item.label}
                     </option>
                   ))}
                 </select>
@@ -1527,13 +1530,12 @@ const Teacher: React.FC = () => {
             <div className="admin-form-group">
               <label className="admin-label">ტიპი:</label>
               <select
-                value={pointType}
+                value={pointType || 2}
                 onChange={(e) => setPointType(Number(e.target.value))}
                 className="admin-select"
               >
-                <option value={0}>აირჩიეთ ტიპი</option>
+                <option value={2}>აღრიცხვა</option>
                 <option value={1}>საშინაო</option>
-                <option value={2}>საკლასო</option>
                 <option value={3}>შემაჯამებელი</option>
               </select>
             </div>
@@ -1597,7 +1599,7 @@ const Teacher: React.FC = () => {
         )}
 
         {selectedSubject &&
-          allowedDays.length > 0 &&
+          allowedDatesList.length > 0 &&
           gradeEntryStartDate &&
           pointType > 0 ? (
           <div className="admin-list-container" style={{ maxWidth: '100%' }}>
@@ -1605,7 +1607,7 @@ const Teacher: React.FC = () => {
               <h3 className="admin-view-title" style={{ fontSize: '20px' }}>მოსწავლეთა სია</h3>
               <div style={{ display: "flex", gap: "20px", flexWrap: "wrap", fontSize: '14px', opacity: 0.8 }}>
                 <span><strong>საგანი:</strong> {allSubjects.find((s) => s._id === selectedSubject)?.name}</span>
-                <span><strong>თარიღი:</strong> {day} {georgianMonths[month]} {year}</span>
+                <span><strong>თარიღი:</strong> {String(day).padStart(2, '0')}.${String(month + 1).padStart(2, '0')}.${year}</span>
               </div>
             </div>
 
@@ -1669,25 +1671,7 @@ const Teacher: React.FC = () => {
                                 <span style={checked ? circleCheckedStyle : circleStyle}></span>
                               </span>
                             </label>
-                            {!checked && (
-                              <select
-                                value={grades[student._id]?.excuse_reason || "general_unexcused"}
-                                onChange={(e) => {
-                                  setGrades(prev => ({
-                                    ...prev,
-                                    [student._id]: { ...prev[student._id], excuse_reason: e.target.value }
-                                  }));
-                                }}
-                                style={{ fontSize: '11px', padding: '2px 4px', borderRadius: '4px', background: '#27272a', color: '#fbbf24', border: '1px solid rgba(255,255,255,0.1)' }}
-                              >
-                                <option value="general_unexcused">არასაპატიო</option>
-                                <option value="olympiad">⭐ ოლიმპიადა</option>
-                                <option value="sports">🏆 სპორტული</option>
-                                <option value="art">🎨 სახელოვნებო</option>
-                                <option value="medical">🏥 სამედიცინო</option>
-                                <option value="general_excused">✓ სხვა საპატიო</option>
-                              </select>
-                            )}
+
                           </div>
 
                           {isCommentOnly ? (
@@ -1765,8 +1749,8 @@ const Teacher: React.FC = () => {
             </div>
             <div style={{ fontSize: "14px", color: "rgba(255,255,255,0.5)", lineHeight: '1.6' }}>
               {!selectedSubject && "• აირჩიეთ საგანი"}<br />
-              {selectedSubject && !allowedDays.length && "• აირჩიეთ სწორი თარიღი"}<br />
-              {selectedSubject && allowedDays.length > 0 && pointType === 0 && "• აირჩიეთ ქულის ტიპი"}
+              {selectedSubject && !allowedDatesList.length && "• აირჩიეთ სწორი თარიღი"}<br />
+              {selectedSubject && allowedDatesList.length > 0 && pointType === 0 && "• აირჩიეთ ქულის ტიპი"}
             </div>
           </div>
         )}
@@ -1801,33 +1785,63 @@ const Teacher: React.FC = () => {
   // Grade history page
   const GradeHistoryPage: React.FC<{ allSubjects: any[] }> = () => {
     const { id } = useParams();
+    const [searchParams] = useSearchParams();
     const classId = id!;
-    const classObj = teachesClasses.find((cls: any) => cls._id === classId);
+    const classObj = teachesClasses.find((cls: any) => cls._id === classId) || tutorClasses.find((cls: any) => cls._id === classId);
     const className = classObj ? classObj.classname : "";
     const { selectedColor } = useColor();
 
     const loginData = JSON.parse(localStorage.getItem("login") || "{}");
     const user_ID = loginData.user_ID;
     const teacher = allTeachers.find((t: any) => t.user_ID === user_ID);
-    let teacherSubjectId: string | undefined = undefined;
-    let teacherSubjectName: string | undefined = undefined;
 
-    if (classObj && Array.isArray(classObj.subjects) && teacher) {
-      const ts = classObj.subjects.find((s: any) => s.teacher_id === teacher._id);
-      if (ts) {
-        teacherSubjectId = ts.subject_id;
-        const subjObj = allSubjects.find((s: any) => s._id === ts.subject_id);
-        if (subjObj) teacherSubjectName = subjObj.name;
+    // Find ALL subjects this teacher teaches in this class
+    const teacherSubjectsInClass = React.useMemo(() => {
+      if (!classObj || !Array.isArray(classObj.subjects) || !teacher) return [];
+      const list: { id: string; name: string }[] = [];
+      classObj.subjects.forEach((s: any) => {
+        if (
+          s.teacher_id === teacher._id &&
+          (s.hours_per_week === undefined || s.hours_per_week > 0)
+        ) {
+          const subjObj = allSubjects.find((subj: any) => subj._id === s.subject_id);
+          if (subjObj && !list.some((item) => item.id === subjObj._id)) {
+            list.push({ id: subjObj._id, name: subjObj.name });
+          }
+        }
+      });
+      return list;
+    }, [classObj, teacher, allSubjects]);
+
+    const urlSubjectId = searchParams.get("subject_id");
+
+    const [selectedSubjectId, setSelectedSubjectId] = useState<string | undefined>(() => {
+      if (urlSubjectId) return urlSubjectId;
+      return teacherSubjectsInClass.length > 0 ? teacherSubjectsInClass[0].id : undefined;
+    });
+
+    useEffect(() => {
+      if (!selectedSubjectId && teacherSubjectsInClass.length > 0) {
+        if (urlSubjectId && teacherSubjectsInClass.some(s => s.id === urlSubjectId)) {
+          setSelectedSubjectId(urlSubjectId);
+        } else {
+          setSelectedSubjectId(teacherSubjectsInClass[0].id);
+        }
       }
-    }
+    }, [teacherSubjectsInClass, urlSubjectId, selectedSubjectId]);
+
+    const selectedSubjObj = teacherSubjectsInClass.find(s => s.id === selectedSubjectId) || allSubjects.find(s => s._id === selectedSubjectId);
+    const teacherSubjectName = selectedSubjObj ? selectedSubjObj.name : (searchParams.get("subject_name") || undefined);
 
     return renderTeacherLayout(
         <DetailedGradeHistory
           classId={classId}
           className={className}
-          subjectId={teacherSubjectId}
+          subjectId={selectedSubjectId}
           subjectName={teacherSubjectName}
           selectedColor={selectedColor}
+          availableTeacherSubjects={teacherSubjectsInClass}
+          onSubjectChange={(subjId) => setSelectedSubjectId(subjId)}
           onBackClick={() => navigate(-1)}
           isAdmin={false}
         />

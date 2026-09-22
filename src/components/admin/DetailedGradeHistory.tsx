@@ -41,6 +41,8 @@ interface DetailedGradeHistoryProps {
     onBackClick: () => void;
     selectedYear?: string;
     isAdmin?: boolean;
+    availableTeacherSubjects?: { id: string; name: string }[];
+    onSubjectChange?: (subjectId: string, subjectName: string) => void;
 }
 
 const isDateEditableForUser = (dateStr: string, isAdminUser?: boolean): boolean => {
@@ -127,7 +129,9 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
     selectedColor,
     onBackClick,
     selectedYear,
-    isAdmin = false
+    isAdmin = false,
+    availableTeacherSubjects,
+    onSubjectChange
 }) => {
     const { currentTheme } = useColor();
     const isDark = currentTheme.id === 'dark';
@@ -148,6 +152,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
     const [students, setStudents] = useState<Student[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [selectedSubject, setSelectedSubject] = useState<string>(subjectId || 'all');
     const [academicYearFilter, setAcademicYearFilter] = useState<string>(normalizeAcademicYear(selectedYear) || currentAy);
     const [semesterFilter, setSemesterFilter] = useState<'all' | '1' | '2'>('1');
@@ -240,7 +245,44 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
     }, [selectedYear]);
 
     useEffect(() => {
+        const cacheKey = `history_cache_${classId}`;
+        let hasCache = false;
+
+        try {
+            const cachedStr = localStorage.getItem(cacheKey);
+            if (cachedStr) {
+                const cachedData = JSON.parse(cachedStr);
+                if (cachedData && Array.isArray(cachedData.grades) && Array.isArray(cachedData.students)) {
+                    setGrades(cachedData.grades);
+                    setStudents(cachedData.students);
+                    if (Array.isArray(cachedData.subjects)) setSubjects(cachedData.subjects);
+
+                    const yearsWithGrades = Array.from(
+                        new Set(cachedData.grades.map((g: any) => getAcademicYearFromDate(g.date)).filter(Boolean) as string[])
+                    ).sort().reverse();
+
+                    if (yearsWithGrades.length > 0) {
+                        const currentYearGrades = cachedData.grades.filter((g: any) => getAcademicYearFromDate(g.date) === currentAy);
+                        if (currentYearGrades.length === 0 && !selectedYear) {
+                            setAcademicYearFilter(yearsWithGrades[0]);
+                        }
+                    }
+
+                    setLoading(false);
+                    hasCache = true;
+                }
+            }
+        } catch (e) {
+            console.error('Failed to read history cache:', e);
+        }
+
         const fetchData = async () => {
+            if (hasCache) {
+                setIsRefreshing(true);
+            } else {
+                setLoading(true);
+            }
+
             try {
                 // Fetch ALL grades for the class (without year restriction) to discover all academic years
                 const gradesUrl = `/api/grades?class_id=${classId}`;
@@ -318,14 +360,27 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
 
                 classStudents.sort((a: any, b: any) => `${a.surname || ''} ${a.name || ''}`.localeCompare(`${b.surname || ''} ${b.name || ''}`, 'ka'));
                 setStudents(classStudents);
-                if (Array.isArray(subjectsData)) {
-                    subjectsData.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '', 'ka'));
+                let validSubjects = Array.isArray(subjectsData) ? subjectsData : [];
+                validSubjects.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '', 'ka'));
+                setSubjects(validSubjects);
+
+                // Save to localStorage cache for instant loading next time
+                try {
+                    localStorage.setItem(cacheKey, JSON.stringify({
+                        grades: fetchedGrades,
+                        students: classStudents,
+                        subjects: validSubjects,
+                        timestamp: Date.now()
+                    }));
+                } catch (cacheErr) {
+                    console.error('Failed to save history cache:', cacheErr);
                 }
-                setSubjects(subjectsData);
-                setLoading(false);
+
             } catch (error) {
                 console.error('Error fetching data:', error);
+            } finally {
                 setLoading(false);
+                setIsRefreshing(false);
             }
         };
         fetchData();
@@ -509,7 +564,17 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
             if (res.ok) {
                 const gradesRes = await fetch(`/api/grades?class_id=${classId}`);
                 const gradesData = await gradesRes.json();
-                if (Array.isArray(gradesData)) setGrades(gradesData);
+                if (Array.isArray(gradesData)) {
+                    setGrades(gradesData);
+                    try {
+                        localStorage.setItem(`history_cache_${classId}`, JSON.stringify({
+                            grades: gradesData,
+                            students,
+                            subjects,
+                            timestamp: Date.now()
+                        }));
+                    } catch (e) {}
+                }
                 setEditModalOpen(false);
                 setToast({ message: selectedCell.targetGrade ? '✓ ნიშანი წარმატებით ჩასწორდა!' : '✓ ნიშანი წარმატებით დაემატა!', type: 'success' });
                 setTimeout(() => setToast(null), 3500);
@@ -544,7 +609,18 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                 })
             });
             if (res.ok) {
-                setGrades(prev => prev.filter(g => g._id !== targetGrade._id));
+                setGrades(prev => {
+                    const next = prev.filter(g => g._id !== targetGrade._id);
+                    try {
+                        localStorage.setItem(`history_cache_${classId}`, JSON.stringify({
+                            grades: next,
+                            students,
+                            subjects,
+                            timestamp: Date.now()
+                        }));
+                    } catch (e) {}
+                    return next;
+                });
                 setEditModalOpen(false);
                 setToast({ message: '✓ ნიშანი წარმატებით წაიშალა!', type: 'success' });
                 setTimeout(() => setToast(null), 3500);
@@ -590,8 +666,8 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
         ? sortedStudents.filter(s => `${s.name} ${s.surname}`.toLowerCase().includes(mobileSearchQuery.toLowerCase()))
         : sortedStudents;
 
-    const currentSubjectObj = subjects.find(s => s._id === selectedSubject);
-    const displaySubjectTitle = subjectName || (selectedSubject !== 'all' ? currentSubjectObj?.name : 'ყველა საგანი');
+    const currentSubjectObj = subjects.find(s => s._id === selectedSubject) || availableTeacherSubjects?.find(s => s.id === selectedSubject);
+    const displaySubjectTitle = currentSubjectObj ? currentSubjectObj.name : (selectedSubject !== 'all' && subjectName ? subjectName : (selectedSubject === 'all' ? 'ყველა საგანი' : ''));
 
     return (
         <div style={{
@@ -659,7 +735,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span style={{ width: '16px', height: '16px', background: '#84c4cb', border: '1px solid #5eead4', borderRadius: '4px' }}></span>
-                            <span style={{ fontSize: '13px', fontWeight: 700, color: subTextColor }}>საკლასო</span>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: subTextColor }}>აღრიცხვა</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span style={{ width: '16px', height: '16px', background: '#f4978e', border: '1px solid #f87171', borderRadius: '4px' }}></span>
@@ -669,6 +745,11 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
 
                     {/* Right: Subject Header */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        {isRefreshing && (
+                            <span style={{ fontSize: '12px', fontWeight: 800, color: '#2563eb', background: 'rgba(37, 99, 235, 0.1)', padding: '4px 10px', borderRadius: '10px', border: '1px solid rgba(37, 99, 235, 0.2)' }}>
+                                🔄 განახლება...
+                            </span>
+                        )}
                         <span style={{ fontSize: '18px', fontWeight: 800, color: headingColor, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                             საგანი: <span style={{ color: accentTitleColor }}>{displaySubjectTitle}</span>
                         </span>
@@ -676,7 +757,52 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                 </div>
 
                 {/* Academic Year & Semester Selector Tabs */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+                    {/* Available Teacher Subjects Selector Pills */}
+                    {availableTeacherSubjects && availableTeacherSubjects.length > 1 && (
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            flexWrap: 'wrap',
+                            justifyContent: 'center',
+                            background: isDark ? '#111827' : '#f8fafc',
+                            padding: '12px 20px',
+                            borderRadius: '16px',
+                            border: `1px solid ${cardBorder}`
+                        }}>
+                            <span style={{ fontSize: '14px', fontWeight: 800, color: headingColor, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                📖 აირჩიეთ საგანი:
+                            </span>
+                            {availableTeacherSubjects.map(subj => {
+                                const isActive = selectedSubject === subj.id;
+                                return (
+                                    <button
+                                        key={subj.id}
+                                        type="button"
+                                        onClick={() => {
+                                            setSelectedSubject(subj.id);
+                                            if (onSubjectChange) onSubjectChange(subj.id, subj.name);
+                                        }}
+                                        style={{
+                                            background: isActive ? (selectedColor || '#2e1065') : (isDark ? '#1f2937' : '#ffffff'),
+                                            color: isActive ? '#ffffff' : (isDark ? '#cbd5e1' : '#2e1065'),
+                                            border: isActive ? `1.5px solid ${selectedColor || '#2e1065'}` : `1.5px solid ${isDark ? '#374151' : '#cbd5e1'}`,
+                                            borderRadius: '12px',
+                                            padding: '8px 20px',
+                                            fontWeight: 800,
+                                            fontSize: '14px',
+                                            cursor: 'pointer',
+                                            boxShadow: isActive ? '0 4px 12px rgba(46, 16, 101, 0.25)' : 'none',
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        {subj.name}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
                     {/* Academic Year Pills */}
                     <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
                         {detectedAcademicYears.map(yr => {
@@ -1358,7 +1484,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                         }}
                                     >
                                         <option value={1}>🔵 საშინაო (ლურჯი)</option>
-                                        <option value={2}>🟡 საკლასო (ყვითელი)</option>
+                                        <option value={2}>🟡 აღრიცხვა (ყვითელი)</option>
                                         <option value={3}>🔴 შემაჯამებელი (წითელი)</option>
                                     </select>
                                 </div>

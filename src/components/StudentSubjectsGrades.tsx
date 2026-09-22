@@ -385,7 +385,7 @@ const StudentSubjectsGrades: React.FC<StudentSubjectsGradesProps> = ({ studentId
 
                                                 let typeLabel = isFormative ? 'განმავითარებელი' : 'საშინაო';
                                                 if (!isFormative) {
-                                                    if (grade.pointType === 2) typeLabel = 'საკლასო';
+                                                    if (grade.pointType === 2) typeLabel = 'აღრიცხვა';
                                                     else if (grade.pointType === 3) typeLabel = 'შემაჯამებელი';
                                                     else if (grade.pointType === 4) typeLabel = 'ექსტერნი';
                                                 }
