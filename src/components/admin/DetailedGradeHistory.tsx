@@ -155,11 +155,22 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [selectedSubject, setSelectedSubject] = useState<string>(subjectId || 'all');
     const [academicYearFilter, setAcademicYearFilter] = useState<string>(normalizeAcademicYear(selectedYear) || currentAy);
-    const [semesterFilter, setSemesterFilter] = useState<'all' | '1' | '2'>('1');
+    const [semesterFilter, setSemesterFilter] = useState<'all' | '1' | '2'>('all');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
     const [mobileSearchQuery, setMobileSearchQuery] = useState('');
     const [expandedMobileStudentId, setExpandedMobileStudentId] = useState<string | null>(null);
-    const [mobileViewMode, setMobileViewMode] = useState<'cards' | 'matrix'>('matrix');
+    const [isMobileScreen, setIsMobileScreen] = useState<boolean>(() => typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
+    const [mobileViewMode, setMobileViewMode] = useState<'cards' | 'matrix'>(() => typeof window !== 'undefined' && window.innerWidth <= 768 ? 'cards' : 'matrix');
+
+    useEffect(() => {
+        const checkMobile = () => {
+            const mobile = window.innerWidth <= 768;
+            setIsMobileScreen(mobile);
+        };
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     const sortedStudents = React.useMemo(() => {
         return [...students].sort((a, b) => `${a.surname || ''} ${a.name || ''}`.localeCompare(`${b.surname || ''} ${b.name || ''}`, 'ka'));
@@ -284,11 +295,24 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
             }
 
             try {
-                // Fetch grades filtered by current/selected academic year for fast performance
+                // Fetch class details if className is empty
+                let resolvedClassName = className;
+                if (!resolvedClassName && classId) {
+                    try {
+                        const classRes = await fetch('/api/classes');
+                        if (classRes.ok) {
+                            const allClasses = await classRes.json();
+                            const foundCls = Array.isArray(allClasses) ? allClasses.find((c: any) => c._id === classId) : null;
+                            if (foundCls) resolvedClassName = foundCls.classname;
+                        }
+                    } catch (err) {}
+                }
+
+                // Fetch grades filtered by current/selected academic year
                 const targetYear = academicYearFilter || currentAy;
                 const gradesUrl = `/api/grades?class_id=${classId}&year=${encodeURIComponent(targetYear)}`;
 
-                const match = className.match(/^([0-9]+)([ა-ჰ])$/);
+                const match = (resolvedClassName || '').match(/^([0-9]+)([ა-ჰ])$/);
                 const studentsUrl = match
                     ? `/api/student/grade/${match[1]}?parallel=${encodeURIComponent(match[2])}`
                     : '/api/student/all';
@@ -305,11 +329,25 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                     subjectsRes.json()
                 ]);
 
-                const fetchedGrades: Grade[] = Array.isArray(gradesData) ? gradesData : [];
+                let fetchedGrades: Grade[] = Array.isArray(gradesData) ? gradesData : [];
+                
+                // Fallback: If 0 grades for targetYear, fetch all grades for classId to find available years
+                if (fetchedGrades.length === 0 && targetYear === currentAy) {
+                    try {
+                        const allGradesRes = await fetch(`/api/grades?class_id=${classId}`);
+                        if (allGradesRes.ok) {
+                            const allGradesData = await allGradesRes.json();
+                            if (Array.isArray(allGradesData) && allGradesData.length > 0) {
+                                fetchedGrades = allGradesData;
+                            }
+                        }
+                    } catch (e) {}
+                }
+
                 setGrades(fetchedGrades);
 
                 let classStudents = Array.isArray(studentsData)
-                    ? (match ? studentsData : studentsData.filter((s: any) => s.classInfo && s.classInfo._id === classId))
+                    ? (match ? studentsData : studentsData.filter((s: any) => String(s.class_id) === String(classId) || (s.classInfo && String(s.classInfo._id) === String(classId))))
                     : [];
                 classStudents = classStudents.filter((s: any) => !s.isTransferred && s.status !== 'transferred');
 
@@ -349,7 +387,9 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
         );
     }
 
-    const subjectFilteredGrades = selectedSubject === 'all' ? grades : grades.filter(g => g.subject_id === selectedSubject);
+    const subjectFilteredGrades = selectedSubject === 'all'
+        ? grades
+        : grades.filter(g => String(g.subject_id) === String(selectedSubject));
 
     const detectedAcademicYears = Array.from(
         new Set(subjectFilteredGrades.map(g => getAcademicYearFromDate(g.date)).filter(Boolean) as string[])
@@ -622,7 +662,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
         ? sortedStudents.filter(s => `${s.name} ${s.surname}`.toLowerCase().includes(mobileSearchQuery.toLowerCase()))
         : sortedStudents;
 
-    const currentSubjectObj = subjects.find(s => s._id === selectedSubject) || availableTeacherSubjects?.find(s => s.id === selectedSubject);
+    const currentSubjectObj = subjects.find(s => String(s._id) === String(selectedSubject)) || availableTeacherSubjects?.find(s => String(s.id) === String(selectedSubject));
     const displaySubjectTitle = currentSubjectObj ? currentSubjectObj.name : (selectedSubject !== 'all' && subjectName ? subjectName : (selectedSubject === 'all' ? 'ყველა საგანი' : ''));
 
     return (
@@ -631,7 +671,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
             minHeight: '100vh',
             background: pageBg,
             color: textColor,
-            padding: '24px 16px',
+            padding: isMobileScreen ? '12px 6px' : '24px 16px',
             boxSizing: 'border-box',
             display: 'flex',
             flexDirection: 'column',
@@ -643,14 +683,14 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                 width: '100%',
                 maxWidth: '1350px',
                 background: cardBg,
-                borderRadius: '24px',
+                borderRadius: isMobileScreen ? '16px' : '24px',
                 boxShadow: isDark ? '0 10px 40px rgba(0, 0, 0, 0.4)' : '0 10px 40px rgba(0, 0, 0, 0.05)',
                 border: `1px solid ${cardBorder}`,
-                padding: '32px 28px',
+                padding: isMobileScreen ? '16px 10px' : '32px 28px',
                 boxSizing: 'border-box',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '24px'
+                gap: isMobileScreen ? '16px' : '24px'
             }}>
                 {/* Top Action Header */}
                 <div style={{
@@ -658,7 +698,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     flexWrap: 'wrap',
-                    gap: '16px',
+                    gap: '12px',
                     paddingBottom: '16px',
                     borderBottom: `1px solid ${cardBorder}`
                 }}>
@@ -673,65 +713,118 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                             border: `1px solid ${isDark ? '#374151' : '#cbd5e1'}`,
                             color: isDark ? '#ffffff' : '#2e1065',
                             fontWeight: 800,
-                            fontSize: '15px',
+                            fontSize: '14px',
                             cursor: 'pointer',
-                            padding: '8px 16px',
+                            padding: '8px 14px',
                             borderRadius: '12px',
                             transition: 'all 0.2s'
                         }}
                     >
-                        <ArrowLeftIcon size={20} /> უკან დაბრუნება
+                        <ArrowLeftIcon size={18} /> უკან დაბრუნება
                     </button>
 
-                    {/* Center: Color Legend */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ width: '16px', height: '16px', background: '#fef08a', border: '1px solid #fde047', borderRadius: '4px' }}></span>
-                            <span style={{ fontSize: '13px', fontWeight: 700, color: subTextColor }}>საშინაო</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ width: '16px', height: '16px', background: '#84c4cb', border: '1px solid #5eead4', borderRadius: '4px' }}></span>
-                            <span style={{ fontSize: '13px', fontWeight: 700, color: subTextColor }}>აღრიცხვა / საკლასო </span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ width: '16px', height: '16px', background: '#f4978e', border: '1px solid #f87171', borderRadius: '4px' }}></span>
-                            <span style={{ fontSize: '13px', fontWeight: 700, color: subTextColor }}>შემაჯამებელი</span>
-                        </div>
+                    {/* View Mode Switcher (Cards vs Matrix) */}
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        background: isDark ? '#1f2937' : '#f1f5f9',
+                        padding: '4px',
+                        borderRadius: '12px',
+                        border: `1px solid ${isDark ? '#374151' : '#cbd5e1'}`
+                    }}>
+                        <button
+                            type="button"
+                            onClick={() => setMobileViewMode('cards')}
+                            style={{
+                                background: mobileViewMode === 'cards' ? '#2563eb' : 'transparent',
+                                color: mobileViewMode === 'cards' ? '#ffffff' : (isDark ? '#cbd5e1' : '#475569'),
+                                border: 'none',
+                                padding: '6px 14px',
+                                borderRadius: '8px',
+                                fontWeight: 800,
+                                fontSize: '13px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px'
+                            }}
+                        >
+                            🎴 ბარათები
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setMobileViewMode('matrix')}
+                            style={{
+                                background: mobileViewMode === 'matrix' ? '#2563eb' : 'transparent',
+                                color: mobileViewMode === 'matrix' ? '#ffffff' : (isDark ? '#cbd5e1' : '#475569'),
+                                border: 'none',
+                                padding: '6px 14px',
+                                borderRadius: '8px',
+                                fontWeight: 800,
+                                fontSize: '13px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px'
+                            }}
+                        >
+                            📊 ცხრილი
+                        </button>
                     </div>
 
                     {/* Right: Subject Header */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         {isRefreshing && (
-                            <span style={{ fontSize: '12px', fontWeight: 800, color: '#2563eb', background: 'rgba(37, 99, 235, 0.1)', padding: '4px 10px', borderRadius: '10px', border: '1px solid rgba(37, 99, 235, 0.2)' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 800, color: '#2563eb', background: 'rgba(37, 99, 235, 0.1)', padding: '4px 8px', borderRadius: '10px', border: '1px solid rgba(37, 99, 235, 0.2)' }}>
                                 🔄 განახლება...
                             </span>
                         )}
-                        <span style={{ fontSize: '18px', fontWeight: 800, color: headingColor, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        <span style={{ fontSize: isMobileScreen ? '15px' : '18px', fontWeight: 800, color: headingColor, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                             საგანი: <span style={{ color: accentTitleColor }}>{displaySubjectTitle}</span>
                         </span>
                     </div>
                 </div>
 
+                {/* Color Legend */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', flexWrap: 'wrap', padding: '4px 0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '14px', height: '14px', background: '#fef08a', border: '1px solid #fde047', borderRadius: '4px' }}></span>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: subTextColor }}>საშინაო</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '14px', height: '14px', background: '#84c4cb', border: '1px solid #5eead4', borderRadius: '4px' }}></span>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: subTextColor }}>აღრიცხვა / საკლასო </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '14px', height: '14px', background: '#f4978e', border: '1px solid #f87171', borderRadius: '4px' }}></span>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: subTextColor }}>შემაჯამებელი</span>
+                    </div>
+                </div>
+
                 {/* Academic Year & Semester Selector Tabs */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                     {/* Available Teacher Subjects Selector Pills */}
                     {availableTeacherSubjects && availableTeacherSubjects.length > 1 && (
                         <div style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '10px',
+                            gap: '8px',
                             flexWrap: 'wrap',
                             justifyContent: 'center',
                             background: isDark ? '#111827' : '#f8fafc',
-                            padding: '12px 20px',
+                            padding: '10px 14px',
                             borderRadius: '16px',
-                            border: `1px solid ${cardBorder}`
+                            border: `1px solid ${cardBorder}`,
+                            width: '100%',
+                            boxSizing: 'border-box'
                         }}>
-                            <span style={{ fontSize: '14px', fontWeight: 800, color: headingColor, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 800, color: headingColor, display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 📖 აირჩიეთ საგანი:
                             </span>
                             {availableTeacherSubjects.map(subj => {
-                                const isActive = selectedSubject === subj.id;
+                                const isActive = String(selectedSubject) === String(subj.id);
                                 return (
                                     <button
                                         key={subj.id}
@@ -745,9 +838,9 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                             color: isActive ? '#ffffff' : (isDark ? '#cbd5e1' : '#2e1065'),
                                             border: isActive ? `1.5px solid ${selectedColor || '#2e1065'}` : `1.5px solid ${isDark ? '#374151' : '#cbd5e1'}`,
                                             borderRadius: '12px',
-                                            padding: '8px 20px',
+                                            padding: '6px 14px',
                                             fontWeight: 800,
-                                            fontSize: '14px',
+                                            fontSize: '13px',
                                             cursor: 'pointer',
                                             boxShadow: isActive ? '0 4px 12px rgba(46, 16, 101, 0.25)' : 'none',
                                             transition: 'all 0.2s'
@@ -760,7 +853,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                         </div>
                     )}
                     {/* Academic Year Pills */}
-                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
                         {detectedAcademicYears.map(yr => {
                             const isActive = academicYearFilter === yr;
                             return (
@@ -772,10 +865,10 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                         background: isActive ? '#2e1065' : '#ffffff',
                                         color: isActive ? '#ffffff' : '#2e1065',
                                         border: isActive ? '1.5px solid #2e1065' : '1.5px solid #cbd5e1',
-                                        borderRadius: '12px',
-                                        padding: '8px 24px',
+                                        borderRadius: '10px',
+                                        padding: '6px 18px',
                                         fontWeight: 800,
-                                        fontSize: '14px',
+                                        fontSize: '13px',
                                         cursor: 'pointer',
                                         boxShadow: isActive ? '0 4px 12px rgba(46, 16, 101, 0.25)' : 'none',
                                         transition: 'all 0.2s'
@@ -788,7 +881,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                     </div>
 
                     {/* Semester Pills */}
-                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
                         <button
                             type="button"
                             onClick={() => setSemesterFilter('1')}
@@ -797,9 +890,9 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                 color: semesterFilter === '1' ? '#ffffff' : '#2e1065',
                                 border: semesterFilter === '1' ? '1.5px solid #2e1065' : '1.5px solid #cbd5e1',
                                 borderRadius: '10px',
-                                padding: '6px 20px',
+                                padding: '6px 16px',
                                 fontWeight: 800,
-                                fontSize: '13px',
+                                fontSize: '12px',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s'
                             }}
@@ -814,9 +907,9 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                 color: semesterFilter === '2' ? '#ffffff' : '#2e1065',
                                 border: semesterFilter === '2' ? '1.5px solid #2e1065' : '1.5px solid #cbd5e1',
                                 borderRadius: '10px',
-                                padding: '6px 20px',
+                                padding: '6px 16px',
                                 fontWeight: 800,
-                                fontSize: '13px',
+                                fontSize: '12px',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s'
                             }}
@@ -831,9 +924,9 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                 color: semesterFilter === 'all' ? '#ffffff' : '#2e1065',
                                 border: semesterFilter === 'all' ? '1.5px solid #2e1065' : '1.5px solid #cbd5e1',
                                 borderRadius: '10px',
-                                padding: '6px 16px',
+                                padding: '6px 14px',
                                 fontWeight: 800,
-                                fontSize: '13px',
+                                fontSize: '12px',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s'
                             }}
@@ -847,25 +940,25 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                 <div style={{
                     display: 'flex',
                     justifyContent: 'center',
-                    gap: '20px',
+                    gap: '12px',
                     flexWrap: 'wrap',
-                    margin: '4px 0 8px 0'
+                    margin: '2px 0 6px 0'
                 }}>
                     <div style={{
                         background: isDark ? 'rgba(239, 68, 68, 0.15)' : '#fef2f2',
                         border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.3)' : '#fee2e2'}`,
-                        padding: '10px 20px',
-                        borderRadius: '14px',
+                        padding: '8px 16px',
+                        borderRadius: '12px',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '10px'
+                        gap: '8px'
                     }}>
-                        <span style={{ fontSize: '18px' }}>🚨</span>
+                        <span style={{ fontSize: '16px' }}>🚨</span>
                         <div>
-                            <div style={{ fontSize: '11px', color: isDark ? '#fca5a5' : '#ef4444', fontWeight: 800, textTransform: 'uppercase' }}>
+                            <div style={{ fontSize: '10px', color: isDark ? '#fca5a5' : '#ef4444', fontWeight: 800, textTransform: 'uppercase' }}>
                                 გაცდენების %
                             </div>
-                            <div style={{ fontSize: '16px', fontWeight: 900, color: isDark ? '#f87171' : '#dc2626' }}>
+                            <div style={{ fontSize: '15px', fontWeight: 900, color: isDark ? '#f87171' : '#dc2626' }}>
                                 {absencePct}%
                             </div>
                         </div>
@@ -874,18 +967,18 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                     <div style={{
                         background: isDark ? 'rgba(34, 197, 94, 0.15)' : '#f0fdf4',
                         border: `1px solid ${isDark ? 'rgba(34, 197, 94, 0.3)' : '#dcfce7'}`,
-                        padding: '10px 20px',
-                        borderRadius: '14px',
+                        padding: '8px 16px',
+                        borderRadius: '12px',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '10px'
+                        gap: '8px'
                     }}>
-                        <span style={{ fontSize: '18px' }}>📊</span>
+                        <span style={{ fontSize: '16px' }}>📊</span>
                         <div>
-                            <div style={{ fontSize: '11px', color: isDark ? '#86efac' : '#16a34a', fontWeight: 800, textTransform: 'uppercase' }}>
+                            <div style={{ fontSize: '10px', color: isDark ? '#86efac' : '#16a34a', fontWeight: 800, textTransform: 'uppercase' }}>
                                 საშუალო ნიშანი
                             </div>
-                            <div style={{ fontSize: '16px', fontWeight: 900, color: isDark ? '#4ade80' : '#15803d' }}>
+                            <div style={{ fontSize: '15px', fontWeight: 900, color: isDark ? '#4ade80' : '#15803d' }}>
                                 {avgGradeVal}
                             </div>
                         </div>
@@ -894,216 +987,447 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                     <div style={{
                         background: isDark ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff',
                         border: `1px solid ${isDark ? 'rgba(59, 130, 246, 0.3)' : '#dbeafe'}`,
-                        padding: '10px 20px',
-                        borderRadius: '14px',
+                        padding: '8px 16px',
+                        borderRadius: '12px',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '10px'
+                        gap: '8px'
                     }}>
-                        <span style={{ fontSize: '18px' }}>📝</span>
+                        <span style={{ fontSize: '16px' }}>📝</span>
                         <div>
-                            <div style={{ fontSize: '11px', color: isDark ? '#93c5fd' : '#2563eb', fontWeight: 800, textTransform: 'uppercase' }}>
+                            <div style={{ fontSize: '10px', color: isDark ? '#93c5fd' : '#2563eb', fontWeight: 800, textTransform: 'uppercase' }}>
                                 დაწერილი შემაჯამებლები
                             </div>
-                            <div style={{ fontSize: '16px', fontWeight: 900, color: isDark ? '#60a5fa' : '#1d4ed8' }}>
+                            <div style={{ fontSize: '15px', fontWeight: 900, color: isDark ? '#60a5fa' : '#1d4ed8' }}>
                                 {totalSummatives}
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Table Matrix Grid */}
-                <div style={{
-                    width: '100%',
-                    overflowX: 'auto',
-                    borderRadius: '12px',
-                    border: '1px solid #cbd5e1',
-                    boxShadow: '0 4px 15px rgba(0, 0, 0, 0.03)'
-                }}>
-                    <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: '800px' }}>
-                        <thead>
-                            <tr style={{ background: '#ffffff' }}>
-                                <th style={{
-                                    minWidth: '220px',
-                                    position: 'sticky',
-                                    left: 0,
-                                    zIndex: 10,
-                                    background: '#ffffff',
-                                    color: '#64748b',
-                                    fontWeight: 800,
-                                    fontSize: '13px',
-                                    padding: '14px 18px',
-                                    textAlign: 'left',
-                                    borderRight: '2px solid #e2e8f0',
-                                    borderBottom: '2px solid #cbd5e1',
-                                    textTransform: 'uppercase'
-                                }}>
-                                    სახელი გვარი
-                                </th>
-                                {allDatesArr.map(date => (
-                                    <th key={date} style={{
-                                        textAlign: 'center',
-                                        minWidth: '65px',
-                                        padding: '12px 6px',
-                                        color: '#64748b',
-                                        fontWeight: 700,
-                                        fontSize: '13px',
-                                        borderRight: '1px solid #f1f5f9',
-                                        borderBottom: '2px solid #cbd5e1',
-                                        background: '#ffffff'
-                                    }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                                            <span>{formatDate(date)}</span>
-                                            <button
-                                                onClick={() => handleDeleteDay(date)}
-                                                title="დღის წაშლა"
-                                                style={{
-                                                    background: 'transparent',
-                                                    border: 'none',
-                                                    color: '#ef4444',
-                                                    fontSize: '10px',
-                                                    cursor: 'pointer',
-                                                    opacity: 0.5,
-                                                    padding: 0
-                                                }}
-                                                onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                                                onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
-                                            >
-                                                ✕
-                                            </button>
-                                        </div>
-                                    </th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {students.length > 0 ? students.map((student, idx) => {
+                {/* SEARCH INPUT FOR MOBILE / CARDS VIEW */}
+                {(mobileViewMode === 'cards' || isMobileScreen) && (
+                    <div style={{ width: '100%', maxWidth: '500px', margin: '0 auto' }}>
+                        <input
+                            type="text"
+                            value={mobileSearchQuery}
+                            onChange={(e) => setMobileSearchQuery(e.target.value)}
+                            placeholder="🔍 მოსწავლის ძებნა (სახელი / გვარი)..."
+                            style={{
+                                width: '100%',
+                                padding: '12px 18px',
+                                borderRadius: '14px',
+                                background: isDark ? '#1f2937' : '#f8fafc',
+                                border: `1.5px solid ${isDark ? '#374151' : '#cbd5e1'}`,
+                                color: textColor,
+                                fontSize: '14px',
+                                fontWeight: 700,
+                                boxSizing: 'border-box'
+                            }}
+                        />
+                    </div>
+                )}
+
+                {/* VIEW MODE: CARDS / ACCORDION (MOBILE FRIENDLY) */}
+                {mobileViewMode === 'cards' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%' }}>
+                        {filteredStudents.length > 0 ? (
+                            filteredStudents.map((student) => {
+                                const isExpanded = expandedMobileStudentId === student._id || filteredStudents.length === 1;
+
                                 const studentAbsenceCount = allDatesArr.reduce((count, date) => {
                                     const gradeList = studentDateGrades[student._id]?.[date] || [];
                                     const isAbsent = gradeList.some(g => g.point === -2 || g.checked === false);
                                     return count + (isAbsent ? 1 : 0);
                                 }, 0);
 
+                                const studentGrades = displayGrades.filter(g => String(g.student_id) === String(student._id));
+                                const studentNumericGrades = studentGrades.filter(isNumericGrade);
+                                const studentAvg = studentNumericGrades.length > 0
+                                    ? (studentNumericGrades.reduce((sum, g) => sum + (typeof g.point === 'number' ? g.point : parseInt(g.point, 10)), 0) / studentNumericGrades.length).toFixed(1)
+                                    : '-';
+
                                 return (
-                                    <tr key={student._id}>
-                                        {/* Student Sticky Name Column */}
-                                        <td style={{
-                                            fontWeight: 700,
-                                            color: '#0f172a',
-                                            position: 'sticky',
-                                            left: 0,
-                                            zIndex: 5,
-                                            background: '#ffffff',
-                                            borderRight: '2px solid #e2e8f0',
-                                            borderBottom: '1px solid #e2e8f0',
-                                            padding: '14px 18px',
-                                            minWidth: '260px'
-                                        }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="#0f172a" style={{ flexShrink: 0 }}>
-                                                        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                                                    </svg>
-                                                    <span style={{ fontSize: '14px', whiteSpace: 'nowrap' }}>
-                                                        {student.surname} {student.name}
-                                                    </span>
-                                                </div>
-                                                <span style={{
-                                                    fontSize: '12px',
-                                                    fontWeight: 800,
-                                                    background: studentAbsenceCount > 0 ? '#fee2e2' : '#f1f5f9',
-                                                    color: studentAbsenceCount > 0 ? '#dc2626' : '#64748b',
-                                                    padding: '3px 8px',
-                                                    borderRadius: '8px',
-                                                    whiteSpace: 'nowrap',
+                                    <div
+                                        key={student._id}
+                                        style={{
+                                            background: isDark ? '#111827' : '#ffffff',
+                                            border: `1.5px solid ${isExpanded ? (selectedColor || '#2563eb') : cardBorder}`,
+                                            borderRadius: '16px',
+                                            overflow: 'hidden',
+                                            boxShadow: '0 4px 15px rgba(0, 0, 0, 0.04)',
+                                            transition: 'all 0.2s ease'
+                                        }}
+                                    >
+                                        {/* Card Header (Tap to expand) */}
+                                        <div
+                                            onClick={() => setExpandedMobileStudentId(isExpanded ? null : student._id)}
+                                            style={{
+                                                padding: '16px 18px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                gap: '12px',
+                                                cursor: 'pointer',
+                                                background: isExpanded ? (isDark ? '#1f2937' : '#f8fafc') : 'transparent'
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                                                <div style={{
+                                                    width: '40px',
+                                                    height: '40px',
+                                                    borderRadius: '50%',
+                                                    background: selectedColor || '#2563eb',
+                                                    color: 'white',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    fontWeight: 900,
+                                                    fontSize: '15px',
                                                     flexShrink: 0
-                                                }} title="გაცდენების რიცხვითი რაოდენობა">
-                                                    {studentAbsenceCount} გაცდენა
-                                                </span>
+                                                }}>
+                                                    {student.surname?.[0] ?? ''}{student.name?.[0] ?? ''}
+                                                </div>
+                                                <div style={{ minWidth: 0 }}>
+                                                    <div style={{ fontWeight: 800, fontSize: '15px', color: headingColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                        {student.surname} {student.name}
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
+                                                        <span style={{
+                                                            fontSize: '11px',
+                                                            fontWeight: 800,
+                                                            background: studentAbsenceCount > 0 ? '#fee2e2' : '#f1f5f9',
+                                                            color: studentAbsenceCount > 0 ? '#dc2626' : '#64748b',
+                                                            padding: '2px 8px',
+                                                            borderRadius: '6px'
+                                                        }}>
+                                                            {studentAbsenceCount} გაცდენა
+                                                        </span>
+                                                        <span style={{
+                                                            fontSize: '11px',
+                                                            fontWeight: 800,
+                                                            background: studentAvg !== '-' ? '#dcfce7' : '#f1f5f9',
+                                                            color: studentAvg !== '-' ? '#15803d' : '#64748b',
+                                                            padding: '2px 8px',
+                                                            borderRadius: '6px'
+                                                        }}>
+                                                            საშ: {studentAvg}
+                                                        </span>
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </td>
 
-                                    {/* Date Cells */}
-                                    {allDatesArr.map(date => {
-                                        const gradeList = studentDateGrades[student._id]?.[date] || [];
-                                        const primaryGrade = gradeList[0] || null;
-                                        const datePointType = datesPointTypes[date] || 2;
-                                        const effectivePointType = primaryGrade ? (primaryGrade.pointType || datePointType) : datePointType;
+                                            <div style={{ fontSize: '16px', fontWeight: 800, color: subTextColor, flexShrink: 0 }}>
+                                                {isExpanded ? '▲' : '▼'}
+                                            </div>
+                                        </div>
 
-                                        let cellBgColor = '#84c4cb'; // Default Mint / Classwork
-                                        if (effectivePointType === 3) {
-                                            cellBgColor = '#f4978e'; // Summative Red / Salmon
-                                        } else if (effectivePointType === 1) {
-                                            cellBgColor = '#fef08a'; // Homework Yellow
-                                        }
+                                        {/* Card Expanded Content */}
+                                        {isExpanded && (
+                                            <div style={{ padding: '16px 18px', borderTop: `1px solid ${cardBorder}`, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ fontSize: '12px', fontWeight: 800, color: subTextColor, textTransform: 'uppercase' }}>
+                                                        ნიშნების ისტორია ({allDatesArr.length} თარიღი)
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openEditModalForGrade(student, todayStr, null)}
+                                                        style={{
+                                                            background: '#2563eb',
+                                                            color: 'white',
+                                                            border: 'none',
+                                                            padding: '6px 14px',
+                                                            borderRadius: '10px',
+                                                            fontWeight: 800,
+                                                            fontSize: '12px',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px'
+                                                        }}
+                                                    >
+                                                        + ნიშნის დამატება
+                                                    </button>
+                                                </div>
 
-                                        return (
-                                            <td
-                                                key={date}
-                                                onClick={() => openEditModalForGrade(student, date, primaryGrade)}
-                                                title={primaryGrade ? `დააჭირეთ ჩასასწორებლად (${formatDate(date)})` : `დააჭირეთ ნიშნის დასამატებლად (${formatDate(date)})`}
-                                                style={{
-                                                    textAlign: 'center',
-                                                    padding: '10px 4px',
-                                                    background: cellBgColor,
-                                                    border: '1.5px solid #ffffff',
-                                                    cursor: 'pointer',
-                                                    verticalAlign: 'middle',
-                                                    transition: 'filter 0.15s, transform 0.15s'
-                                                }}
-                                                onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.08)'}
-                                                onMouseLeave={e => e.currentTarget.style.filter = 'brightness(1)'}
-                                            >
-                                                {gradeList.length > 0 ? (
-                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', flexWrap: 'wrap', maxWidth: '140px', margin: '0 auto' }}>
-                                                        {gradeList.map((g, gIdx) => {
-                                                            const isAbsent = g.point === -2 || g.checked === false;
-                                                            const displayVal = getSingleGradeDisplay(g);
-                                                            const isNumber = typeof g.point === 'number' && g.point >= 0;
-                                                            const hasComment = Boolean(g.comment && g.comment.trim() !== '');
+                                                {allDatesArr.length === 0 ? (
+                                                    <div style={{ padding: '16px', textAlign: 'center', color: subTextColor, fontSize: '13px' }}>
+                                                        ამ პერიოდში ნიშნები არ არის ჩაწერილი
+                                                    </div>
+                                                ) : (
+                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px' }}>
+                                                        {allDatesArr.map(date => {
+                                                            const gradeList = studentDateGrades[student._id]?.[date] || [];
+                                                            const primaryGrade = gradeList[0] || null;
+                                                            const datePointType = datesPointTypes[date] || 2;
+                                                            const effectivePointType = primaryGrade ? (primaryGrade.pointType || datePointType) : datePointType;
 
-                                                            let markColor = '#1d4ed8'; // Navy Blue for checkmark
-                                                            if (isAbsent) markColor = '#dc2626'; // Red for X
-                                                            else if (isNumber) markColor = '#0f172a'; // Black/Navy for numerical score
-
-                                                            const tooltipText = `${g.time ? `[${g.time}] ` : ''}${isAbsent ? 'გაცდენა (X)' : isNumber ? `ქულა: ${g.point}` : 'დასწრება (✓)'}${hasComment ? ` — კომენტარი: "${g.comment}"` : ''}`;
+                                                            let bgPill = '#84c4cb'; // Mint Classwork
+                                                            let typeTitle = 'საკლასო';
+                                                            if (effectivePointType === 3) {
+                                                                bgPill = '#f4978e'; // Summative Red
+                                                                typeTitle = 'შემაჯამებელი';
+                                                            } else if (effectivePointType === 1) {
+                                                                bgPill = '#fef08a'; // Homework Yellow
+                                                                typeTitle = 'საშინაო';
+                                                            }
 
                                                             return (
-                                                                <span
-                                                                    key={g._id || gIdx}
-                                                                    title={tooltipText}
+                                                                <div
+                                                                    key={date}
+                                                                    onClick={() => openEditModalForGrade(student, date, primaryGrade)}
                                                                     style={{
-                                                                        fontSize: '17px',
-                                                                        fontWeight: 900,
-                                                                        color: markColor,
-                                                                        lineHeight: 1,
-                                                                        display: 'inline-flex',
-                                                                        alignItems: 'center',
-                                                                        gap: '1px'
+                                                                        background: bgPill,
+                                                                        borderRadius: '12px',
+                                                                        padding: '10px 12px',
+                                                                        cursor: 'pointer',
+                                                                        display: 'flex',
+                                                                        flexDirection: 'column',
+                                                                        justifyContent: 'space-between',
+                                                                        gap: '6px',
+                                                                        boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+                                                                        border: '1.5px solid rgba(255,255,255,0.7)',
+                                                                        transition: 'transform 0.15s'
                                                                     }}
                                                                 >
-                                                                    {isAbsent ? 'X' : displayVal}
-                                                                    {hasComment && !isAbsent && <span style={{ fontSize: '10px', marginLeft: '1px' }}>💬</span>}
-                                                                </span>
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', fontWeight: 800, color: '#1e293b' }}>
+                                                                        <span>{formatDate(date)}</span>
+                                                                        <span style={{ fontSize: '10px', opacity: 0.8 }}>{typeTitle}</span>
+                                                                    </div>
+
+                                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', margin: '4px 0' }}>
+                                                                        {gradeList.length > 0 ? (
+                                                                            gradeList.map((g, gIdx) => {
+                                                                                const isAbsent = g.point === -2 || g.checked === false;
+                                                                                const displayVal = getSingleGradeDisplay(g);
+                                                                                const isNumber = typeof g.point === 'number' && g.point >= 0;
+                                                                                const markColor = isAbsent ? '#dc2626' : isNumber ? '#0f172a' : '#1d4ed8';
+
+                                                                                return (
+                                                                                    <span key={g._id || gIdx} style={{ fontSize: '20px', fontWeight: 900, color: markColor }}>
+                                                                                        {isAbsent ? 'X' : displayVal}
+                                                                                    </span>
+                                                                                );
+                                                                            })
+                                                                        ) : (
+                                                                            <span style={{ fontSize: '12px', opacity: 0.5, fontWeight: 700 }}>+ დაწერა</span>
+                                                                        )}
+                                                                    </div>
+
+                                                                    {primaryGrade?.comment && (
+                                                                        <div style={{ fontSize: '11px', color: '#0f172a', fontWeight: 600, background: 'rgba(255,255,255,0.6)', padding: '2px 6px', borderRadius: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                            💬 {primaryGrade.comment}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
                                                             );
                                                         })}
                                                     </div>
-                                                ) : null}
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <div style={{ textAlign: 'center', padding: '40px', color: subTextColor, fontWeight: 700 }}>
+                                მოსწავლეები ვერ მოიძებნა
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    /* VIEW MODE: TABLE MATRIX GRID */
+                    <div style={{
+                        width: '100%',
+                        overflowX: 'auto',
+                        WebkitOverflowScrolling: 'touch',
+                        borderRadius: '12px',
+                        border: '1px solid #cbd5e1',
+                        boxShadow: '0 4px 15px rgba(0, 0, 0, 0.03)'
+                    }}>
+                        <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: isMobileScreen ? '650px' : '800px' }}>
+                            <thead>
+                                <tr style={{ background: '#ffffff' }}>
+                                    <th style={{
+                                        width: isMobileScreen ? '200px' : '300px',
+                                        minWidth: isMobileScreen ? '200px' : '280px',
+                                        maxWidth: isMobileScreen ? '200px' : '300px',
+                                        position: 'sticky',
+                                        left: 0,
+                                        zIndex: 10,
+                                        background: '#ffffff',
+                                        color: '#64748b',
+                                        fontWeight: 800,
+                                        fontSize: '11px',
+                                        padding: isMobileScreen ? '8px 5px' : '10px 10px',
+                                        textAlign: 'left',
+                                        borderRight: '2px solid #e2e8f0',
+                                        borderBottom: '2px solid #cbd5e1',
+                                        textTransform: 'uppercase'
+                                    }}>
+                                        მოსწავლე
+                                    </th>
+                                    {allDatesArr.map(date => (
+                                        <th key={date} style={{
+                                            textAlign: 'center',
+                                            minWidth: '55px',
+                                            padding: '10px 4px',
+                                            color: '#64748b',
+                                            fontWeight: 700,
+                                            fontSize: '12px',
+                                            borderRight: '1px solid #f1f5f9',
+                                            borderBottom: '2px solid #cbd5e1',
+                                            background: '#ffffff'
+                                        }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                                <span>{formatDate(date)}</span>
+                                                <button
+                                                    onClick={() => handleDeleteDay(date)}
+                                                    title="დღის წაშლა"
+                                                    style={{
+                                                        background: 'transparent',
+                                                        border: 'none',
+                                                        color: '#ef4444',
+                                                        fontSize: '10px',
+                                                        cursor: 'pointer',
+                                                        opacity: 0.5,
+                                                        padding: 0
+                                                    }}
+                                                    onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                                                    onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {students.length > 0 ? students.map((student, idx) => {
+                                    const studentAbsenceCount = allDatesArr.reduce((count, date) => {
+                                        const gradeList = studentDateGrades[student._id]?.[date] || [];
+                                        const isAbsent = gradeList.some(g => g.point === -2 || g.checked === false);
+                                        return count + (isAbsent ? 1 : 0);
+                                    }, 0);
+
+                                    return (
+                                        <tr key={student._id}>
+                                            {/* Student Sticky Name Column */}
+                                            <td style={{
+                                                fontWeight: 700,
+                                                color: '#0f172a',
+                                                position: 'sticky',
+                                                left: 0,
+                                                zIndex: 5,
+                                                background: '#ffffff',
+                                                borderRight: '2px solid #e2e8f0',
+                                                borderBottom: '1px solid #e2e8f0',
+                                                padding: isMobileScreen ? '8px 5px' : '10px 10px',
+                                                width: isMobileScreen ? '110px' : '140px',
+                                                minWidth: isMobileScreen ? '100px' : '120px',
+                                                maxWidth: isMobileScreen ? '115px' : '150px'
+                                            }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+                                                    <span style={{ fontSize: isMobileScreen ? '11px' : '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={`${student.surname} ${student.name}`}>
+                                                        {student.surname} {student.name}
+                                                    </span>
+                                                    {!isMobileScreen && (
+                                                        <span style={{
+                                                            fontSize: '10px',
+                                                            fontWeight: 800,
+                                                            background: studentAbsenceCount > 0 ? '#fee2e2' : '#f1f5f9',
+                                                            color: studentAbsenceCount > 0 ? '#dc2626' : '#64748b',
+                                                            padding: '1px 5px',
+                                                            borderRadius: '5px',
+                                                            whiteSpace: 'nowrap',
+                                                            flexShrink: 0
+                                                        }}>
+                                                            {studentAbsenceCount}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
-                                        );
-                                    })}
-                                </tr>
-                            );
-                        }) : (
-                                <tr>
-                                    <td colSpan={allDatesArr.length + 1} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
-                                        მოსწავლეები ვერ მოიძებნა
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+
+                                        {/* Date Cells */}
+                                        {allDatesArr.map(date => {
+                                            const gradeList = studentDateGrades[student._id]?.[date] || [];
+                                            const primaryGrade = gradeList[0] || null;
+                                            const datePointType = datesPointTypes[date] || 2;
+                                            const effectivePointType = primaryGrade ? (primaryGrade.pointType || datePointType) : datePointType;
+
+                                            let cellBgColor = '#84c4cb'; // Default Mint / Classwork
+                                            if (effectivePointType === 3) {
+                                                cellBgColor = '#f4978e'; // Summative Red / Salmon
+                                            } else if (effectivePointType === 1) {
+                                                cellBgColor = '#fef08a'; // Homework Yellow
+                                            }
+
+                                            return (
+                                                <td
+                                                    key={date}
+                                                    onClick={() => openEditModalForGrade(student, date, primaryGrade)}
+                                                    title={primaryGrade ? `დააჭირეთ ჩასასწორებლად (${formatDate(date)})` : `დააჭირეთ ნიშნის დასამატებლად (${formatDate(date)})`}
+                                                    style={{
+                                                        textAlign: 'center',
+                                                        padding: '8px 3px',
+                                                        background: cellBgColor,
+                                                        border: '1.5px solid #ffffff',
+                                                        cursor: 'pointer',
+                                                        verticalAlign: 'middle',
+                                                        transition: 'filter 0.15s'
+                                                    }}
+                                                    onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.08)'}
+                                                    onMouseLeave={e => e.currentTarget.style.filter = 'brightness(1)'}
+                                                >
+                                                    {gradeList.length > 0 ? (
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', flexWrap: 'wrap', maxWidth: '140px', margin: '0 auto' }}>
+                                                            {gradeList.map((g, gIdx) => {
+                                                                const isAbsent = g.point === -2 || g.checked === false;
+                                                                const displayVal = getSingleGradeDisplay(g);
+                                                                const isNumber = typeof g.point === 'number' && g.point >= 0;
+                                                                const hasComment = Boolean(g.comment && g.comment.trim() !== '');
+
+                                                                let markColor = '#1d4ed8'; // Navy Blue for checkmark
+                                                                if (isAbsent) markColor = '#dc2626'; // Red for X
+                                                                else if (isNumber) markColor = '#0f172a'; // Black/Navy for numerical score
+
+                                                                return (
+                                                                    <span
+                                                                        key={g._id || gIdx}
+                                                                        style={{
+                                                                            fontSize: isMobileScreen ? '15px' : '17px',
+                                                                            fontWeight: 900,
+                                                                            color: markColor,
+                                                                            lineHeight: 1,
+                                                                            display: 'inline-flex',
+                                                                            alignItems: 'center',
+                                                                            gap: '1px'
+                                                                        }}
+                                                                    >
+                                                                        {isAbsent ? 'X' : displayVal}
+                                                                        {hasComment && !isAbsent && <span style={{ fontSize: '10px', marginLeft: '1px' }}>💬</span>}
+                                                                    </span>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    ) : null}
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                );
+                            }) : (
+                                    <tr>
+                                        <td colSpan={allDatesArr.length + 1} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                                            მოსწავლეები ვერ მოიძებნა
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
 
             {/* Toast Banner */}
