@@ -17,24 +17,40 @@ export function calculateSemesterStats(grades: Grade[], startMonth: number, endM
   for (const grade of grades) {
     if (grade.pointType === 4) continue;
 
-    const date = new Date(grade.date);
-    if (isNaN(date.getTime())) continue;
+    let month = 0;
+    if (grade.date) {
+      const d = new Date(grade.date);
+      if (!isNaN(d.getTime())) {
+        month = d.getMonth() + 1;
+      } else {
+        const parts = String(grade.date).split(/[-./]/);
+        if (parts.length === 3) {
+          if (parts[0].length === 4) month = parseInt(parts[1], 10);
+          else if (parts[2].length === 4) month = parseInt(parts[1], 10);
+        }
+      }
+    }
 
-    const month = date.getMonth() + 1;
-    if (month >= startMonth && month <= endMonth) {
+    const inFirstSemester = (month >= 7 && month <= 12);
+    const inSecondSemester = (month >= 1 && month <= 6);
+    const isTargetSemester = (startMonth === 9 && inFirstSemester) || (startMonth === 1 && inSecondSemester) || (month >= startMonth && month <= endMonth);
+
+    if (isTargetSemester || (month === 0 && startMonth === 9)) {
       const pt = typeof grade.point === "number" ? grade.point : (typeof grade.point === "string" && !isNaN(parseInt(grade.point, 10)) ? parseInt(grade.point, 10) : -1);
-      // Strictly include only valid 0-10 numeric marks (excluding comments, formative grades, and pass/fail -3)
+      // Include valid 0-10 numeric marks
       if (pt >= 0 && pt <= 10 && !grade.is_formative && grade.point !== -3) {
         totalPoints += pt;
         validGrades++;
       }
 
-      if (lessonAttendance[grade.date] !== undefined) {
-        if (grade.checked) {
-          lessonAttendance[grade.date] = true;
+      if (grade.date) {
+        if (lessonAttendance[grade.date] !== undefined) {
+          if (grade.checked) {
+            lessonAttendance[grade.date] = true;
+          }
+        } else {
+          lessonAttendance[grade.date] = grade.checked;
         }
-      } else {
-        lessonAttendance[grade.date] = grade.checked;
       }
     }
   }

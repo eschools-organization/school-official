@@ -56,15 +56,11 @@ interface StudentSubjectsGradesProps {
 const StudentSubjectsGrades: React.FC<StudentSubjectsGradesProps> = ({ studentId, classId }) => {
     const { selectedColor } = useColor();
     const [expandedSubjects, setExpandedSubjects] = useState<Record<string, boolean>>({});
-    const [selectedYear, setSelectedYear] = useState<string>('');
 
     const { data: studentData, isLoading: loading, error: queryError } = useQuery<StudentData>({
-        queryKey: ['student-subjects-grades', studentId, classId, selectedYear],
+        queryKey: ['student-subjects-grades', studentId, classId],
         queryFn: async () => {
-            let url = `/api/student/subjects-grades?student_id=${studentId}&class_id=${classId}`;
-            if (selectedYear) {
-                url += `&year=${selectedYear}`;
-            }
+            const url = `/api/student/subjects-grades?student_id=${studentId}&class_id=${classId}`;
             const response = await fetch(url);
             if (!response.ok) {
                 const errorText = await response.text();
@@ -113,47 +109,8 @@ const StudentSubjectsGrades: React.FC<StudentSubjectsGradesProps> = ({ studentId
                     საგნები და ქულები
                 </h1>
                 <p style={{ margin: '0', fontSize: '18px', opacity: 0.9 }}>
-                    მოსწავლის საგნების სია
+                    მიმდინარე სასწავლო წლის საგნებისა და ნიშნების სია
                 </p>
-                {studentData?.available_years && studentData.available_years.length > 1 && (
-                    <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span style={{ fontSize: '14px', fontWeight: 'bold' }}>სასწავლო წელი:</span>
-                        <select
-                            value={selectedYear}
-                            onChange={(e) => setSelectedYear(e.target.value)}
-                            style={{
-                                padding: '6px 12px',
-                                borderRadius: '8px',
-                                border: 'none',
-                                background: 'rgba(255, 255, 255, 0.2)',
-                                color: 'white',
-                                fontWeight: 'bold',
-                                outline: 'none',
-                                cursor: 'pointer',
-                                fontSize: '14px'
-                            }}
-                        >
-                            {studentData.available_years.map((y, idx) => {
-                                const isCurrent = idx === 0;
-                                let formattedYear = y;
-                                if (y && !y.startsWith('20')) {
-                                    const m = y.match(/^(\d{2})[-/](\d{2})$/);
-                                    if (m) formattedYear = `20${m[1]}-20${m[2]}`;
-                                    else {
-                                        const mCol = y.match(/^(\d{2})(\d{2})year$/);
-                                        if (mCol) formattedYear = `20${mCol[1]}-20${mCol[2]}`;
-                                        else formattedYear = `20${y}`;
-                                    }
-                                }
-                                return (
-                                    <option key={y} value={isCurrent ? "" : y} style={{ background: '#1e293b', color: 'white' }}>
-                                        {isCurrent ? `${formattedYear} (მიმდინარე)` : formattedYear}
-                                    </option>
-                                );
-                            })}
-                        </select>
-                    </div>
-                )}
             </div>
 
             {error && (
@@ -326,7 +283,6 @@ const StudentSubjectsGrades: React.FC<StudentSubjectsGradesProps> = ({ studentId
                                         gap: '12px',
                                     }}>
                                         {[...subject.grades]
-                                            .filter((g: any) => g.point !== -1 && g.point !== -2 && g.point !== '-1' && g.point !== '-2')
                                             .sort((a, b) => {
                                                 const dateCompare = b.date.localeCompare(a.date);
                                                 if (dateCompare !== 0) return dateCompare;

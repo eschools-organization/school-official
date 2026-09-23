@@ -16,17 +16,12 @@ import {
   FaComments,
   FaCalendarAlt,
   FaTasks,
-  FaUserGraduate,
-  FaKey,
-  FaRegTimesCircle
+  FaUserGraduate
 } from 'react-icons/fa';
-import { IoEyeOutline, IoEyeOffOutline } from 'react-icons/io5';
 import { clearAuthSession, validateSession } from '@/lib/auth';
 import '../admin/Admin.css';
 
 const FaSignOutAltIcon = FaSignOutAlt as React.ComponentType<any>;
-const EyeIcon = IoEyeOutline as React.FC<{ size?: number | string }>;
-const EyeOffIcon = IoEyeOffOutline as React.FC<{ size?: number | string }>;
 
 function getGeorgianDate() {
     const days = ['კვირა', 'ორშაბათი', 'სამშაბათი', 'ოთხშაბათი', 'ხუთშაბათი', 'პარასკევი', 'შაბათი'];
@@ -62,57 +57,7 @@ const Student: React.FC = () => {
     const [{ studentId, classId }] = useState(readStudentSession);
     const [activeTab, setActiveTab] = useState<'grades' | 'timeline' | 'homework' | 'notices' | 'messages'>('grades');
 
-    // Password change state
-    const [isPassModalOpen, setIsPassModalOpen] = useState(false);
-    const [oldPassword, setOldPassword] = useState('');
-    const [newPassword, setNewPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
-    const [passError, setPassError] = useState('');
-    const [passSuccess, setPassSuccess] = useState('');
-    const [passLoading, setPassLoading] = useState(false);
-    const [showOldPassword, setShowOldPassword] = useState(false);
-    const [showNewPassword, setShowNewPassword] = useState(false);
-    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-    const handleChangePassword = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setPassError('');
-        setPassSuccess('');
-        if (!oldPassword || !newPassword || !confirmPassword) {
-            setPassError('ყველა ველი აუცილებელია');
-            return;
-        }
-        if (newPassword !== confirmPassword) {
-            setPassError('ახალი პაროლები არ ემთხვევა');
-            return;
-        }
-        if (newPassword.length < 4) {
-            setPassError('ახალი პაროლი უნდა იყოს სულ მცირე 4 სიმბოლო');
-            return;
-        }
-        setPassLoading(true);
-        try {
-            const res = await fetch('/api/student/change-password', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ student_id: studentId, oldPassword, newPassword }),
-            });
-            const data = await res.json();
-            if (res.ok) {
-                setPassSuccess('პაროლი წარმატებით შეიცვალა!');
-                setOldPassword('');
-                setNewPassword('');
-                setConfirmPassword('');
-                setTimeout(() => setIsPassModalOpen(false), 1500);
-            } else {
-                setPassError(data.message || 'შეცდომა პაროლის შეცვლისას');
-            }
-        } catch {
-            setPassError('სერვერთან კავშირი ვერ დამყარდა');
-        } finally {
-            setPassLoading(false);
-        }
-    };
 
     // Fetch student info
     const { data: studentInfo } = useQuery({
@@ -302,139 +247,8 @@ const Student: React.FC = () => {
                                 კლასი: {studentInfo.classInfo.classname}
                             </div>
                         )}
-                        <button
-                            type="button"
-                            onClick={() => setIsPassModalOpen(true)}
-                            style={{
-                                padding: '8px 16px',
-                                borderRadius: '12px',
-                                background: 'rgba(255, 255, 255, 0.08)',
-                                border: '1px solid rgba(255, 255, 255, 0.2)',
-                                color: 'white',
-                                fontWeight: 700,
-                                fontSize: '14px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            <FaKey size={13} color="#fbbf24" /> პაროლის შეცვლა
-                        </button>
                     </div>
                 </div>
-
-                {/* Student Password Change Modal */}
-                {isPassModalOpen && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-                        <div style={{ background: 'rgba(26, 43, 85, 0.95)', backdropFilter: 'blur(30px)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '420px', boxShadow: '0 20px 50px rgba(0,0,0,0.6)', color: 'white' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                                <h3 style={{ color: 'white', margin: 0, fontSize: '20px', fontWeight: 800 }}>პაროლის შეცვლა</h3>
-                                <button type="button" onClick={() => setIsPassModalOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer' }}>
-                                    <FaRegTimesCircle size={20} />
-                                </button>
-                            </div>
-                            <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                {passError && <div style={{ color: '#ef4444', background: '#ef444415', padding: '10px', borderRadius: '8px', fontSize: '13px' }}>{passError}</div>}
-                                {passSuccess && <div style={{ color: '#10b981', background: '#10b98115', padding: '10px', borderRadius: '8px', fontSize: '13px' }}>{passSuccess}</div>}
-                                
-                                <div>
-                                    <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px', display: 'block', marginBottom: '6px', fontWeight: 600 }}>მიმდინარე პაროლი</label>
-                                    <div style={{ position: 'relative', width: '100%' }}>
-                                        <input
-                                            type={showOldPassword ? "text" : "password"}
-                                            autoComplete="current-password"
-                                            autoCorrect="off"
-                                            autoCapitalize="none"
-                                            spellCheck={false}
-                                            value={oldPassword}
-                                            onChange={(e) => setOldPassword(e.target.value)}
-                                            className="admin-input"
-                                            style={{ width: '100%', paddingRight: '42px', boxSizing: 'border-box' }}
-                                            placeholder="••••••••"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowOldPassword(!showOldPassword)}
-                                            style={{
-                                                position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
-                                                background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer',
-                                                padding: 0, minHeight: 'auto', minWidth: 'auto', display: 'flex', alignItems: 'center'
-                                            }}
-                                        >
-                                            {showOldPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
-                                        </button>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px', display: 'block', marginBottom: '6px', fontWeight: 600 }}>ახალი პაროლი</label>
-                                    <div style={{ position: 'relative', width: '100%' }}>
-                                        <input
-                                            type={showNewPassword ? "text" : "password"}
-                                            autoComplete="new-password"
-                                            autoCorrect="off"
-                                            autoCapitalize="none"
-                                            spellCheck={false}
-                                            value={newPassword}
-                                            onChange={(e) => setNewPassword(e.target.value)}
-                                            className="admin-input"
-                                            style={{ width: '100%', paddingRight: '42px', boxSizing: 'border-box' }}
-                                            placeholder="••••••••"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowNewPassword(!showNewPassword)}
-                                            style={{
-                                                position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
-                                                background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer',
-                                                padding: 0, minHeight: 'auto', minWidth: 'auto', display: 'flex', alignItems: 'center'
-                                            }}
-                                        >
-                                            {showNewPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
-                                        </button>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px', display: 'block', marginBottom: '6px', fontWeight: 600 }}>დაადასტურეთ ახალი პაროლი</label>
-                                    <div style={{ position: 'relative', width: '100%' }}>
-                                        <input
-                                            type={showConfirmPassword ? "text" : "password"}
-                                            autoComplete="new-password"
-                                            autoCorrect="off"
-                                            autoCapitalize="none"
-                                            spellCheck={false}
-                                            value={confirmPassword}
-                                            onChange={(e) => setConfirmPassword(e.target.value)}
-                                            className="admin-input"
-                                            style={{ width: '100%', paddingRight: '42px', boxSizing: 'border-box' }}
-                                            placeholder="••••••••"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                            style={{
-                                                position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
-                                                background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer',
-                                                padding: 0, minHeight: 'auto', minWidth: 'auto', display: 'flex', alignItems: 'center'
-                                            }}
-                                        >
-                                            {showConfirmPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
-                                        </button>
-                                    </div>
-                                </div>
-                                <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
-                                    <button type="submit" className="admin-submit-btn" disabled={passLoading} style={{ flex: 1 }}>
-                                        {passLoading ? 'მუშავდება...' : 'შენახვა'}
-                                    </button>
-                                    <button type="button" onClick={() => setIsPassModalOpen(false)} className="admin-cancel-btn">
-                                        გაუქმება
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )}
 
                 {/* Tabs Navigation */}
                 <div style={{ maxWidth: '1200px', margin: '0 auto 24px auto' }}>

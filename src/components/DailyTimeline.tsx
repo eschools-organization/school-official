@@ -40,13 +40,13 @@ interface CalendarEvent {
 
 // Lesson time slots definition
 const timeSlots = [
-  { period: 1, range: '09:00 - 09:45', startMin: 540, endMin: 585 },
-  { period: 2, range: '09:55 - 10:40', startMin: 595, endMin: 640 },
-  { period: 3, range: '10:50 - 11:35', startMin: 650, endMin: 695 },
-  { period: 4, range: '11:55 - 12:40', startMin: 715, endMin: 760 },
-  { period: 5, range: '12:50 - 13:35', startMin: 770, endMin: 815 },
-  { period: 6, range: '13:45 - 14:30', startMin: 825, endMin: 870 },
-  { period: 7, range: '14:40 - 15:25', startMin: 880, endMin: 925 },
+  { period: 1, range: '09:00 - 09:40', startMin: 540, endMin: 585 },
+  { period: 2, range: '09:45 - 10:35', startMin: 595, endMin: 640 },
+  { period: 3, range: '10:40 - 11:20', startMin: 650, endMin: 695 },
+  { period: 4, range: '11:35 - 12:15', startMin: 715, endMin: 760 },
+  { period: 5, range: '12:20 - 13:00', startMin: 770, endMin: 815 },
+  { period: 6, range: '13:05 - 13:45', startMin: 825, endMin: 870 },
+  { period: 7, range: '13:50 - 14:30ა', startMin: 880, endMin: 925 },
 ];
 
 const daysGeorgian = ['ორშაბათი', 'სამშაბათი', 'ოთხშაბათი', 'ხუთშაბათი', 'პარასკევი'];

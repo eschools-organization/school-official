@@ -31,8 +31,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ rank: 1, totalStudents: 0, studentAverage: 0, classAverage: 0, subjectComparisons: {} });
     }
 
+    const yearParam = req.nextUrl.searchParams.get("year");
+    const getPromotionAcademicYear = (d = new Date()) => {
+      const y = d.getFullYear();
+      const m = d.getMonth() + 1;
+      const startY = m >= 9 ? y : y - 1;
+      return `${String(startY).slice(-2)}-${String(startY + 1).slice(-2)}`;
+    };
+    const effectiveYear = yearParam || getPromotionAcademicYear();
+
     // 2. Fetch all grades for this class to compute everyone's stats
-    const allGrades = (await findGrades(db, { class_id: parsedClassId })) as unknown as Grade[];
+    const allGrades = (await findGrades(db, { class_id: parsedClassId }, { year: effectiveYear })) as unknown as Grade[];
 
     // Check if it is a 5th grade class (affects grading statistics)
     const classDoc = await db.collection("class").findOne({ _id: parsedClassId });

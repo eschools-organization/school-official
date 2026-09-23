@@ -59,13 +59,15 @@ export async function GET(req: NextRequest) {
   const studentObjID = student._id;
   const classObjID = new ObjectId(classID);
 
-  const cacheKey = `student_grades_${studentObjID.toString()}_${classID}_${year || ""}_${date || ""}`;
+  const effectiveYear = year || getPromotionAcademicYear(new Date());
+
+  const cacheKey = `student_grades_${studentObjID.toString()}_${classID}_${effectiveYear}_${date || ""}`;
 
   const grades = (await getCachedOrFetch(cacheKey, 60000, async () => {
     return findGrades(db, {
       student_id: studentObjID,
       class_id: classObjID,
-    }, { year, date });
+    }, { year: effectiveYear, date });
   })) as unknown as Grade[];
 
   // Create maps supporting name, subject_name, ID
@@ -83,15 +85,29 @@ export async function GET(req: NextRequest) {
     subjectGrades[sid].push(grade);
   }
 
+  const currentYearStr = getPromotionAcademicYear(new Date());
+
   // Determine subjects and classname to use based on the selected year
   let subjectsToUse = classDoc.subjects || [];
   let classnameToUse = classDoc.ID || classDoc.classname;
   
-  if (year) {
-    const historyEntry = classDoc.history?.find((h: any) => h.year === year);
+  if (effectiveYear && effectiveYear !== currentYearStr) {
+    const historyEntry = classDoc.history?.find((h: any) => h.year === effectiveYear);
     if (historyEntry) {
       subjectsToUse = historyEntry.subjects || [];
       classnameToUse = historyEntry.ID || historyEntry.classname;
+    }
+  }
+
+  // Deduplicate and filter valid subjects
+  const seenSubjectIds = new Set<string>();
+  const uniqueSubjectsToUse = [];
+  for (const s of subjectsToUse) {
+    if (!s || !s.subject_id) continue;
+    const sid = s.subject_id.toString();
+    if (!seenSubjectIds.has(sid)) {
+      seenSubjectIds.add(sid);
+      uniqueSubjectsToUse.push(s);
     }
   }
 
@@ -100,7 +116,7 @@ export async function GET(req: NextRequest) {
 
   // Build response
   const responseSubjects = [];
-  for (const classSubject of subjectsToUse) {
+  for (const classSubject of uniqueSubjectsToUse) {
     const subjectIDStr = classSubject.subject_id.toString();
     const teacherIDStr = classSubject.teacher_id.toString();
 
@@ -142,7 +158,6 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const currentYearStr = getPromotionAcademicYear(new Date());
   const availableYears = [currentYearStr];
   if (classDoc.history) {
     for (const h of classDoc.history) {

@@ -34,7 +34,15 @@ export async function GET(req: NextRequest) {
     filter.subject_id = ObjectId.isValid(subjectID) ? new ObjectId(subjectID) : subjectID;
   }
 
-  const grades = (await findGrades(db, filter, { year, date })) as unknown as Grade[];
+  const getPromotionAcademicYear = (d = new Date()) => {
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1;
+    const startY = m >= 9 ? y : y - 1;
+    return `${String(startY).slice(-2)}-${String(startY + 1).slice(-2)}`;
+  };
+  const effectiveYear = year || getPromotionAcademicYear();
+
+  const grades = (await findGrades(db, filter, { year: effectiveYear, date })) as unknown as Grade[];
 
   let isFifthGrade = false;
   if (ObjectId.isValid(classID)) {
