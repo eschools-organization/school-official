@@ -383,7 +383,7 @@ const EditClassForm: React.FC<EditClassFormProps> = ({ onUpdateClass, onCancel, 
                 </div>
 
                 <div className="admin-form-group">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px', marginBottom: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px', marginBottom: '20px' }}>
                         <h3 className="admin-label" style={{ fontSize: '18px', margin: 0 }}>საგნები</h3>
                         <button
                             type="button"
@@ -393,12 +393,13 @@ const EditClassForm: React.FC<EditClassFormProps> = ({ onUpdateClass, onCancel, 
                                 color: '#ffffff',
                                 background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
                                 border: '1px solid rgba(147, 197, 253, 0.4)',
-                                padding: '6px 14px',
-                                borderRadius: '8px',
+                                padding: '8px 14px',
+                                borderRadius: '10px',
                                 fontWeight: 700,
                                 cursor: 'pointer',
                                 boxShadow: '0 2px 10px rgba(37, 99, 235, 0.3)',
-                                transition: 'all 0.2s ease'
+                                transition: 'all 0.2s ease',
+                                width: 'auto'
                             }}
                             title="კლასის საგნების საათების ავტომატურად განახლება ესგ ბადის მიხედვით"
                         >
@@ -409,75 +410,90 @@ const EditClassForm: React.FC<EditClassFormProps> = ({ onUpdateClass, onCancel, 
                         {classSubjects.map((cs, index) => {
                             const currentSubj = subjectsList.find(s => s._id === cs.subject_id);
                             return (
-                                <div key={index} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                    <select className="admin-select" value={cs.subject_id} onChange={(e) => handleSubjectChange(index, 'subject_id', e.target.value)} style={{ flex: 1 }}>
-                                        <option value="">საგანი</option>
-                                        {subjectsList?.map(s => {
-                                            const isProj = Boolean(s.is_project || s.is_pass_fail || s.type === 'project' || /პროექტი|ჩათვლა|პროექტული/i.test(s.name || ''));
-                                            return (
-                                                <option key={s._id} value={s._id}>
-                                                    {s.name || s.subject_name} {isProj ? '(🎯 ჩათვლა)' : ''}
-                                                </option>
-                                            );
-                                        })}
-                                    </select>
+                                <div key={index} className="edit-class-subject-card">
+                                    {/* Top Row: Subject Select + Edit button + Remove button */}
+                                    <div className="edit-class-subject-row">
+                                        <select className="admin-select" value={cs.subject_id} onChange={(e) => handleSubjectChange(index, 'subject_id', e.target.value)} style={{ flex: 1 }}>
+                                            <option value="">საგანი</option>
+                                            {subjectsList?.map(s => {
+                                                const isProj = Boolean(s.is_project || s.is_pass_fail || s.type === 'project' || /პროექტი|ჩათვლა|პროექტული/i.test(s.name || ''));
+                                                return (
+                                                    <option key={s._id} value={s._id}>
+                                                        {s.name || s.subject_name} {isProj ? '(🎯 ჩათვლა)' : ''}
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
 
-                                    {currentSubj && (
-                                        <button
-                                            type="button"
-                                            onClick={() => openEditModal(currentSubj)}
-                                            style={{
-                                                padding: '8px 12px',
-                                                borderRadius: '8px',
-                                                background: 'rgba(96, 165, 250, 0.2)',
-                                                border: '1px solid rgba(96, 165, 250, 0.4)',
-                                                color: '#60a5fa',
-                                                fontWeight: 700,
-                                                fontSize: '12px',
-                                                cursor: 'pointer',
-                                                whiteSpace: 'nowrap'
-                                            }}
-                                            title="არჩეული საგნის სახელის ან შეფასების სისტემის ჩასწორება"
+                                        {currentSubj && (
+                                            <button
+                                                type="button"
+                                                onClick={() => openEditModal(currentSubj)}
+                                                style={{
+                                                    padding: '10px 14px',
+                                                    borderRadius: '10px',
+                                                    background: 'rgba(96, 165, 250, 0.15)',
+                                                    border: '1px solid rgba(96, 165, 250, 0.35)',
+                                                    color: '#2563eb',
+                                                    fontWeight: 700,
+                                                    fontSize: '13px',
+                                                    cursor: 'pointer',
+                                                    whiteSpace: 'nowrap',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '4px'
+                                                }}
+                                                title="არჩეული საგნის სახელის ან შეფასების სისტემის ჩასწორება"
+                                            >
+                                                ✏️ ჩასწორება
+                                            </button>
+                                        )}
+
+                                        <button 
+                                            type="button" 
+                                            onClick={() => handleRemoveSubject(index)} 
+                                            className="admin-action-btn delete" 
+                                            style={{ width: '42px', height: '42px', minWidth: '42px', flexShrink: 0 }}
+                                            title="საგნის ამოშლა კლასიდან"
                                         >
-                                            ✏️ ჩასწორება
+                                            ✕
                                         </button>
-                                    )}
-
-                                    <select className="admin-select" value={cs.teacher_id} onChange={(e) => handleSubjectChange(index, 'teacher_id', e.target.value)} style={{ flex: 1 }}>
-                                        <option value="">მასწავლებელი</option>
-                                        {teachers?.map(t => <option key={t._id} value={t._id}>{t.name} {t.surname}</option>)}
-                                    </select>
-
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#eff6ff', padding: '6px 10px', borderRadius: '10px', border: '1px solid #bfdbfe' }} title="კვირეული საათები (ავტომატურად გაანგარიშებული ეროვნული სასწავლო გეგმით)">
-                                        <span style={{ fontSize: '12px', fontWeight: 900, color: '#1e40af' }}>საათები:</span>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            max="15"
-                                            value={cs.hours_per_week !== undefined ? cs.hours_per_week : 0}
-                                            onChange={(e) => handleSubjectChange(index, 'hours_per_week', Math.max(0, Number(e.target.value)))}
-                                            style={{ width: '45px', padding: '4px', borderRadius: '6px', border: '1px solid #93c5fd', fontWeight: 900, textAlign: 'center', color: '#1e3a8a', background: '#ffffff' }}
-                                        />
                                     </div>
 
-                                    <button type="button" onClick={() => handleRemoveSubject(index)} className="admin-action-btn delete" style={{ width: '45px', height: '45px' }}>
-                                        ✕
-                                    </button>
+                                    {/* Bottom Controls Row: Teacher Select + Weekly Hours */}
+                                    <div className="edit-class-subject-controls">
+                                        <select className="admin-select" value={cs.teacher_id} onChange={(e) => handleSubjectChange(index, 'teacher_id', e.target.value)} style={{ width: '100%' }}>
+                                            <option value="">მასწავლებელი</option>
+                                            {teachers?.map(t => <option key={t._id} value={t._id}>{t.name} {t.surname}</option>)}
+                                        </select>
+
+                                        <div className="edit-class-hours-badge" title="კვირეული საათები (ავტომატურად გაანგარიშებული ეროვნული სასწავლო გეგმით)">
+                                            <span style={{ fontSize: '13px', fontWeight: 800, color: '#1e40af' }}>კვირაში საათები:</span>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                max="15"
+                                                value={cs.hours_per_week !== undefined ? cs.hours_per_week : 0}
+                                                onChange={(e) => handleSubjectChange(index, 'hours_per_week', Math.max(0, Number(e.target.value)))}
+                                                style={{ width: '50px', padding: '6px', borderRadius: '8px', border: '1px solid #93c5fd', fontWeight: 900, textAlign: 'center', color: '#1e3a8a', background: '#ffffff', fontSize: '14px' }}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
                             );
                         })}
                     </div>
                 </div>
 
-                <button type="button" onClick={handleAddSubject} className="admin-cancel-btn" style={{ width: '100%', marginBottom: '20px', borderStyle: 'dashed' }}>
+                <button type="button" onClick={handleAddSubject} className="admin-cancel-btn" style={{ width: '100%', marginBottom: '20px', borderStyle: 'dashed', padding: '14px' }}>
                     + საგნის დამატება
                 </button>
 
                 <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
-                    <button type="button" onClick={onCancel} className="admin-cancel-btn" style={{ flex: 1 }}>
+                    <button type="button" onClick={onCancel} className="admin-cancel-btn" style={{ flex: 1, padding: '14px' }}>
                         გაუქმება
                     </button>
-                    <button type="submit" className="admin-submit-btn" style={{ background: selectedColor, margin: 0, flex: 1 }}>
+                    <button type="submit" className="admin-submit-btn" style={{ background: selectedColor, margin: 0, flex: 1, padding: '14px' }}>
                         განახლება
                     </button>
                 </div>

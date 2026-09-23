@@ -1243,4 +1243,146 @@
     color: #94a3b8 !important;
 }
 
+/* ==========================================
+   MOBILE RESPONSIVE STYLES FOR CLASS & CALENDAR
+   ========================================== */
+
+/* EditClassForm Mobile Subject Item Card */
+.edit-class-subject-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    transition: all 0.2s ease;
+}
+
+.edit-class-subject-card:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+}
+
+.edit-class-subject-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+}
+
+.edit-class-subject-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+}
+
+.edit-class-hours-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: #eff6ff;
+    padding: 8px 12px;
+    border-radius: 12px;
+    border: 1px solid #bfdbfe;
+    white-space: nowrap;
+}
+
+/* Calendar Manager Day Tabs (Mobile) */
+.calendar-mobile-day-tabs {
+    display: none;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    margin-bottom: 16px;
+    -webkit-overflow-scrolling: touch;
+}
+
+.calendar-day-tab {
+    padding: 10px 16px;
+    border-radius: 12px;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #475569;
+    font-weight: 800;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    flex: 1;
+    text-align: center;
+    min-width: 95px;
+}
+
+.calendar-day-tab.active {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+/* Calendar Mobile Lesson Cards */
+.calendar-mobile-cards {
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.calendar-lesson-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.calendar-lesson-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 8px;
+}
+
+.calendar-lesson-num {
+    font-size: 14px;
+    font-weight: 900;
+    color: #2563eb;
+    background: #eff6ff;
+    padding: 4px 10px;
+    border-radius: 8px;
+    border: 1px solid #bfdbfe;
+}
+
+@media (max-width: 768px) {
+    .admin-form-container {
+        padding: 20px 16px !important;
+        border-radius: 20px !important;
+    }
+
+    .edit-class-subject-controls {
+        grid-template-columns: 1fr !important;
+    }
+
+    .calendar-desktop-table {
+        display: none !important;
+    }
+
+    .calendar-mobile-day-tabs {
+        display: flex !important;
+    }
+
+    .calendar-mobile-cards {
+        display: flex !important;
+    }
+}
+
+
 

@@ -291,6 +291,7 @@ const AdminCalendarManager: React.FC<AdminCalendarManagerProps> = ({ teachers, c
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [calendar, setCalendar] = useState<Calendar>(Array(5).fill(null).map(() => Array(lessonsPerDay).fill({ subject_id: '', teacher_id: '' })));
   const [loading, setLoading] = useState(false);
+  const [activeDayTab, setActiveDayTab] = useState<number>(0);
 
   useEffect(() => {
     setClassesList(initialClasses);
@@ -642,8 +643,23 @@ const AdminCalendarManager: React.FC<AdminCalendarManagerProps> = ({ teachers, c
           </div>
 
           {selectedClassId && (
-            <div className="admin-list-container animate-zoom-in">
-              <div className="admin-table-wrapper" style={{ overflowX: 'auto' }}>
+            <div className="admin-list-container animate-zoom-in" style={{ padding: '16px' }}>
+              {/* Day Tabs Selector for Mobile Screens */}
+              <div className="calendar-mobile-day-tabs">
+                {days.map((day, dIdx) => (
+                  <button
+                    key={dIdx}
+                    type="button"
+                    className={`calendar-day-tab ${activeDayTab === dIdx ? 'active' : ''}`}
+                    onClick={() => setActiveDayTab(dIdx)}
+                  >
+                    {day}
+                  </button>
+                ))}
+              </div>
+
+              {/* Desktop Timetable Matrix (Hidden on Mobile < 768px via CSS) */}
+              <div className="admin-table-wrapper calendar-desktop-table" style={{ overflowX: 'auto' }}>
                 <table className="admin-table calendar-table">
                   <thead>
                     <tr>
@@ -713,6 +729,68 @@ const AdminCalendarManager: React.FC<AdminCalendarManagerProps> = ({ teachers, c
                 </table>
               </div>
 
+              {/* Mobile Daily Timetable Cards View (Visible on Mobile < 768px via CSS) */}
+              <div className="calendar-mobile-cards">
+                {[...Array(lessonsPerDay)].map((_, lessonIdx) => {
+                  const currentClassObj = classesList.find(c => c._id === selectedClassId);
+                  const classSubjectIds = currentClassObj?.subjects?.map(s => s.subject_id.toString()) || [];
+                  const filteredClassSubjects = subjects.filter(sub => classSubjectIds.includes(sub._id.toString()));
+                  const cellSubjectId = calendar[activeDayTab]?.[lessonIdx]?.subject_id;
+                  const allowedTeacherIds = currentClassObj?.subjects
+                    ?.filter(s => String(s.subject_id) === String(cellSubjectId))
+                    .map(s => String(s.teacher_id)) || [];
+                  const filteredClassTeachers = teachers.filter(t =>
+                    allowedTeacherIds.includes(String(t._id)) || (t.user_ID && allowedTeacherIds.includes(String(t.user_ID)))
+                  );
+
+                  return (
+                    <div key={lessonIdx} className="calendar-lesson-card">
+                      <div className="calendar-lesson-header">
+                        <span className="calendar-lesson-num">გაკვეთილი #{lessonIdx + 1}</span>
+                        <span style={{ fontSize: '13px', color: '#2563eb', fontWeight: 800 }}>
+                          {days[activeDayTab]}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label className="admin-label" style={{ fontSize: '11px', margin: 0, color: '#64748b' }}>საგანი:</label>
+                        <select
+                          className="admin-input"
+                          style={{ fontSize: '14px', padding: '10px', width: '100%', fontWeight: 700 }}
+                          value={cellSubjectId || ''}
+                          onChange={(e) => handleCellChange(activeDayTab, lessonIdx, 'subject_id', e.target.value)}
+                        >
+                          <option value="">-- აირჩიეთ საგანი --</option>
+                          {filteredClassSubjects.map(sub => (
+                            <option key={sub._id} value={sub._id}>
+                              {sub.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label className="admin-label" style={{ fontSize: '11px', margin: 0, color: '#64748b' }}>მასწავლებელი:</label>
+                        <select
+                          className="admin-input"
+                          style={{ fontSize: '14px', padding: '10px', width: '100%', opacity: cellSubjectId ? 1 : 0.4 }}
+                          value={calendar[activeDayTab]?.[lessonIdx]?.teacher_id || ''}
+                          onChange={(e) => handleCellChange(activeDayTab, lessonIdx, 'teacher_id', e.target.value)}
+                          disabled={!cellSubjectId}
+                        >
+                          <option value="">-- აირჩიეთ მასწავლებელი --</option>
+                          {filteredClassTeachers.map(t => (
+                            <option key={t._id} value={t._id}>
+                              {t.name} {t.surname}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', flexWrap: 'wrap', gap: '12px' }}>
                 <button
                   type="button"
@@ -722,24 +800,26 @@ const AdminCalendarManager: React.FC<AdminCalendarManagerProps> = ({ teachers, c
                     background: '#fef2f2',
                     border: '1px solid #fecaca',
                     color: '#dc2626',
-                    padding: '12px 24px',
+                    padding: '12px 20px',
                     borderRadius: '12px',
                     fontWeight: 800,
                     fontSize: '14px',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px'
+                    justifyContent: 'center',
+                    gap: '6px',
+                    flex: '1 1 200px'
                   }}
                 >
                   <TrashIcon size={18} />
-                  ამ კლასის ცხრილის გასუფთავება
+                  ცხრილის გასუფთავება
                 </button>
 
                 <button
                   type="button"
                   className="admin-submit-btn"
-                  style={{ background: '#2563eb', color: '#ffffff', width: 'auto', padding: '12px 32px', display: 'flex', alignItems: 'center', gap: '8px' }}
+                  style={{ background: '#2563eb', color: '#ffffff', padding: '14px 28px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flex: '1 1 200px', margin: 0 }}
                   onClick={handleSaveCalendar}
                   disabled={loading}
                 >
@@ -888,7 +968,7 @@ const AdminCalendarManager: React.FC<AdminCalendarManagerProps> = ({ teachers, c
                   </select>
                 </div>
 
-                <div style={{ gridColumn: 'span 2' }}>
+                <div style={{ gridColumn: '1 / -1' }}>
                   <label className="admin-label" style={{ fontSize: '12px' }}>დასახელება (მიზეზი / აღწერა):</label>
                   <input
                     type="text"
@@ -901,7 +981,7 @@ const AdminCalendarManager: React.FC<AdminCalendarManagerProps> = ({ teachers, c
                 </div>
 
                 {newEventType === 'makeup' && (
-                  <div style={{ gridColumn: 'span 2' }}>
+                  <div style={{ gridColumn: '1 / -1' }}>
                     <label className="admin-label" style={{ fontSize: '12px' }}>რომელი დღის ცხრილი გავრცელდეს?</label>
                     <select
                       className="admin-input"
