@@ -1026,6 +1026,16 @@ const Teacher: React.FC = () => {
       enabled: !!id,
       refetchInterval: 10000
     });
+
+    const { data: calendarEvents } = useQuery<any[]>({
+      queryKey: ['calendar-events-allowed-dates'],
+      queryFn: async () => {
+        const res = await fetch('/api/calendar-events');
+        if (!res.ok) return [];
+        return res.json();
+      },
+      refetchInterval: 10000
+    });
     const [students, setStudents] = useState<any[]>([]);
     const [gradeType, setGradeType] = useState("აღრიცხვა");
     const [grades, setGrades] = useState<{
@@ -1312,22 +1322,40 @@ const Teacher: React.FC = () => {
         const m = curr.getMonth();
         const d = curr.getDate();
 
-        let allowed = true;
-        if (currentTeacherId) {
+        const dayFormatted = String(d).padStart(2, '0');
+        const monthFormatted = String(m + 1).padStart(2, '0');
+        const dateStr = `${y}-${monthFormatted}-${dayFormatted}`;
+
+        // Check if date has a calendar event (Holiday vs Makeup)
+        const calEvt = calendarEvents && Array.isArray(calendarEvents)
+          ? calendarEvents.find((e: any) => e.date === dateStr)
+          : null;
+
+        let allowed = false;
+
+        if (calEvt?.type === 'holiday') {
+          // Holiday date is strictly excluded
+          allowed = false;
+        } else if (calEvt?.type === 'makeup') {
+          // Makeup day: check if class/teacher has lesson on replacement day of week
+          if (calEvt.replacementDayOfWeek !== undefined && calEvt.replacementDayOfWeek >= 0 && calEvt.replacementDayOfWeek <= 4) {
+            allowed = hasLessonOnDay(calEvt.replacementDayOfWeek);
+          } else {
+            allowed = true;
+          }
+        } else if (currentTeacherId) {
+          // Regular day
           const dayOfWeek = curr.getDay(); // 0 (Sun) - 6 (Sat)
           const dayOfWeekIdx = dayOfWeek - 1; // 0 (Mon) - 4 (Fri)
-          if (dayOfWeekIdx < 0 || dayOfWeekIdx > 4) {
-            allowed = false;
-          } else {
+          if (dayOfWeekIdx >= 0 && dayOfWeekIdx <= 4) {
             allowed = hasLessonOnDay(dayOfWeekIdx);
+          } else {
+            allowed = false;
           }
         }
 
         if (allowed) {
-          const dayFormatted = String(d).padStart(2, '0');
-          const monthFormatted = String(m + 1).padStart(2, '0');
-          const dateStr = `${y}-${monthFormatted}-${dayFormatted}`;
-          const label = `${dayFormatted}.${monthFormatted}`;
+          const label = calEvt?.type === 'makeup' ? `${dayFormatted}.${monthFormatted} (აღდგენა)` : `${dayFormatted}.${monthFormatted}`;
           dates.push({ dateStr, year: y, month: m, day: d, label });
         }
 
@@ -1335,7 +1363,7 @@ const Teacher: React.FC = () => {
       }
 
       return dates;
-    }, [gradeEntryStartDate, currentTeacherId, selectedSubject, teachesClasses, tutorClasses, id]);
+    }, [gradeEntryStartDate, currentTeacherId, selectedSubject, teachesClasses, tutorClasses, id, calendarEvents]);
 
     // Auto-select latest allowed date if the current selected date is not in allowed list
     useEffect(() => {

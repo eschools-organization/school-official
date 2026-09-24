@@ -2064,6 +2064,7 @@ const Admin: React.FC = () => {
                         logoutButtonStyle={logoutButtonStyle}
                         onBackClick={handleBackClick}
                         selectedYear={selectedHistoryYear}
+                        isAdmin={true}
                     />
                 ) : (
                     <div style={{ color: 'white', textAlign: 'center', padding: '40px 20px', background: 'rgba(26, 43, 85, 0.75)', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)', maxWidth: '500px', margin: '40px auto' }}>

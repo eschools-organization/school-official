@@ -17,6 +17,7 @@ interface Grade {
     time: string;
     comment: string;
     checked: boolean;
+    lesson_num?: number;
 }
 
 interface Student {
@@ -121,6 +122,32 @@ const isDateInSemester = (dateStr: string, semester: 'all' | '1' | '2') => {
     }
 };
 
+const formatDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split(/[-T/]/);
+    if (parts.length >= 3) {
+        if (parts[0].length === 4) {
+            return `${parts[2].padStart(2, '0')}/${parts[1].padStart(2, '0')}`;
+        } else {
+            return `${parts[0].padStart(2, '0')}/${parts[1].padStart(2, '0')}`;
+        }
+    }
+    const date = new Date(dateStr);
+    if (!isNaN(date.getTime())) {
+        return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+    }
+    return dateStr;
+};
+
+const getSingleGradeDisplay = (g: Grade) => {
+    if (!g) return '';
+    if (g.point === -1) return g.checked ? '✓' : '✗';
+    if (g.point === -2) return 'X';
+    if (g.point === -3) return 'ჩთ';
+    if (typeof g.point === 'number' && g.point >= 0) return g.point.toString();
+    return '✓';
+};
+
 const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
     classId,
     className,
@@ -181,6 +208,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
         student: Student;
         date: string;
         targetGrade: Grade | null;
+        lessonNum?: number;
     } | null>(null);
 
     const [isAttending, setIsAttending] = useState<boolean>(true);
@@ -379,13 +407,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
         fetchData();
     }, [classId, className, academicYearFilter]);
 
-    if (loading) {
-        return (
-            <div style={{ color: '#2e1065', textAlign: 'center', marginTop: '60px', fontSize: '18px', fontWeight: 700 }}>
-                იტვირთება...
-            </div>
-        );
-    }
+
 
     const subjectFilteredGrades = selectedSubject === 'all'
         ? grades
@@ -403,52 +425,118 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
         ? subjectFilteredGrades
         : subjectFilteredGrades.filter(g => getAcademicYearFromDate(g.date) === academicYearFilter);
 
-    const rawDatesArr = Array.from(new Set(filteredGrades.map(g => g.date)))
-        .sort((a, b) => sortOrder === 'desc' ? b.localeCompare(a) : a.localeCompare(b));
+    // Group columns by date AND lesson_num so multiple lessons on the same day get separate columns
+    interface DateColumn {
+        key: string;
+        date: string;
+        lessonNum: number;
+        label: string;
+        hasMultipleLessonsOnDate: boolean;
+    }
 
-    const allDatesArr = rawDatesArr.filter(dateStr => isDateInSemester(dateStr, semesterFilter));
+    const { dateColumns, studentColumnGrades, columnPointTypes } = React.useMemo(() => {
+        // Group grades by student_id and date to resolve effective lesson numbers
+        const studentDateGradesMap = new Map<string, Grade[]>();
+        filteredGrades.forEach(g => {
+            if (!g.date) return;
+            if (!isDateInSemester(g.date, semesterFilter)) return;
 
-    const displayGrades = filteredGrades.filter(g => allDatesArr.includes(g.date));
-    const totalDisplayGrades = displayGrades.length;
-    const totalAbsences = displayGrades.filter(g => g.point === -2 || g.checked === false).length;
-    const absencePct = totalDisplayGrades > 0 ? ((totalAbsences / totalDisplayGrades) * 100).toFixed(1) : '0';
+            const key = `${g.student_id}_${g.date}`;
+            if (!studentDateGradesMap.has(key)) {
+                studentDateGradesMap.set(key, []);
+            }
+            studentDateGradesMap.get(key)!.push(g);
+        });
 
-    const isNumericGrade = (g: Grade) => {
-        const pt = typeof g.point === 'number' ? g.point : (typeof g.point === 'string' && !isNaN(parseInt(g.point, 10)) ? parseInt(g.point, 10) : -1);
-        return pt >= 0 && pt <= 10 && !(g as any).is_formative && g.point !== -3;
-    };
-    const numericGrades = displayGrades.filter(isNumericGrade);
-    const avgGradeVal = numericGrades.length > 0 
-        ? (numericGrades.reduce((sum, g) => sum + (typeof g.point === 'number' ? g.point : parseInt(g.point, 10)), 0) / numericGrades.length).toFixed(1)
-        : '-';
+        // Map each Grade reference -> effective lesson_num
+        const gradeEffectiveLessonMap = new Map<Grade, number>();
+        const mapByDate = new Map<string, Set<number>>();
 
-    const todayStr = new Date().toISOString().split('T')[0];
-    const summativeDates = new Set(
-        displayGrades
-            .filter(g => {
-                if (g.pointType !== 3) return false;
-                if (g.date && g.date > todayStr) return false;
-                const isWrittenGrade = (typeof g.point === 'number' && g.point >= 0) || g.point === -3;
-                return isWrittenGrade;
-            })
-            .map(g => g.date)
-    );
-    const totalSummatives = summativeDates.size;
+        studentDateGradesMap.forEach((gList, key) => {
+            const dateStr = key.split('_')[1];
+            if (!mapByDate.has(dateStr)) {
+                mapByDate.set(dateStr, new Set<number>());
+            }
 
-    const studentDateGrades: { [studentId: string]: { [date: string]: Grade[] } } = {};
-    const datesPointTypes: { [date: string]: number } = {};
+            const explicitLessonNums = gList.map(g => g.lesson_num).filter((n): n is number => Boolean(n && n > 0));
+            const hasDuplicates = new Set(explicitLessonNums).size < explicitLessonNums.length;
+            const hasMissing = explicitLessonNums.length < gList.length;
 
-    filteredGrades.forEach(g => {
-        if (!studentDateGrades[g.student_id]) studentDateGrades[g.student_id] = {};
-        if (!studentDateGrades[g.student_id][g.date]) studentDateGrades[g.student_id][g.date] = [];
-        studentDateGrades[g.student_id][g.date].push(g);
+            if (!hasDuplicates && !hasMissing) {
+                gList.forEach(g => {
+                    const lNum = g.lesson_num!;
+                    gradeEffectiveLessonMap.set(g, lNum);
+                    mapByDate.get(dateStr)!.add(lNum);
+                });
+            } else {
+                // Assign sequential lesson numbers (1, 2, 3...) per grade so multiple checks/grades get separate columns
+                const sortedList = [...gList].sort((a, b) => {
+                    if (a.lesson_num && b.lesson_num && a.lesson_num !== b.lesson_num) {
+                        return a.lesson_num - b.lesson_num;
+                    }
+                    if (a.time && b.time) return a.time.localeCompare(b.time);
+                    return (a._id || '').localeCompare(b._id || '');
+                });
 
-        if (g.pointType === 3) {
-            datesPointTypes[g.date] = 3;
-        } else if (g.pointType === 1 && datesPointTypes[g.date] !== 3) {
-            datesPointTypes[g.date] = 1;
-        }
-    });
+                sortedList.forEach((g, idx) => {
+                    const lNum = (g.lesson_num && g.lesson_num > 0 && !hasDuplicates) ? g.lesson_num : (idx + 1);
+                    gradeEffectiveLessonMap.set(g, lNum);
+                    mapByDate.get(dateStr)!.add(lNum);
+                });
+            }
+        });
+
+        const sortedDates = Array.from(mapByDate.keys()).sort((a, b) =>
+            sortOrder === 'desc' ? b.localeCompare(a) : a.localeCompare(b)
+        );
+
+        const cols: DateColumn[] = [];
+        sortedDates.forEach(dateStr => {
+            const lessonNums = Array.from(mapByDate.get(dateStr)!).sort((a, b) => a - b);
+            const hasMultiple = lessonNums.length > 1;
+
+            lessonNums.forEach(lNum => {
+                const label = hasMultiple
+                    ? `${formatDate(dateStr)} (${lNum === 1 ? 'I' : lNum === 2 ? 'II' : lNum + 'ს'})`
+                    : formatDate(dateStr);
+
+                cols.push({
+                    key: `${dateStr}_L${lNum}`,
+                    date: dateStr,
+                    lessonNum: lNum,
+                    label,
+                    hasMultipleLessonsOnDate: hasMultiple
+                });
+            });
+        });
+
+        const studentColGrades: { [studentId: string]: { [colKey: string]: Grade[] } } = {};
+        const colPointTypes: { [colKey: string]: number } = {};
+
+        filteredGrades.forEach(g => {
+            if (!g.date) return;
+            if (!isDateInSemester(g.date, semesterFilter)) return;
+
+            const lNum = gradeEffectiveLessonMap.get(g) || (g.lesson_num && g.lesson_num > 0 ? g.lesson_num : 1);
+            const colKey = `${g.date}_L${lNum}`;
+
+            if (!studentColGrades[g.student_id]) studentColGrades[g.student_id] = {};
+            if (!studentColGrades[g.student_id][colKey]) studentColGrades[g.student_id][colKey] = [];
+            studentColGrades[g.student_id][colKey].push(g);
+
+            if (g.pointType === 3) {
+                colPointTypes[colKey] = 3;
+            } else if (g.pointType === 1 && colPointTypes[colKey] !== 3) {
+                colPointTypes[colKey] = 1;
+            }
+        });
+
+        return {
+            dateColumns: cols,
+            studentColumnGrades: studentColGrades,
+            columnPointTypes: colPointTypes
+        };
+    }, [filteredGrades, semesterFilter, sortOrder]);
 
     const handleDeleteDay = async (dateToDelete: string) => {
         if (!isAdmin) {
@@ -486,8 +574,8 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
         }
     };
 
-    const openEditModalForGrade = (student: Student, date: string, grade: Grade | null) => {
-        setSelectedCell({ student, date, targetGrade: grade });
+    const openEditModalForGrade = (student: Student, date: string, grade: Grade | null, targetLessonNum: number = 1) => {
+        setSelectedCell({ student, date, targetGrade: grade, lessonNum: targetLessonNum });
         const defaultSubj = selectedSubject !== 'all' ? selectedSubject : (subjects[0]?._id || '');
         const subjId = grade?.subject_id || defaultSubj;
         setEditSubjectId(subjId);
@@ -543,6 +631,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                 point: pointVal,
                 pointType: editPointType,
                 checked: checkedVal,
+                lesson_num: selectedCell.lessonNum || selectedCell.targetGrade?.lesson_num || 1,
                 isAdmin: Boolean(isAdmin)
             };
 
@@ -631,32 +720,62 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
         }
     };
 
-    const formatDate = (dateStr: string) => {
-        if (!dateStr) return '';
-        const parts = dateStr.split(/[-T/]/);
-        if (parts.length >= 3) {
-            if (parts[0].length === 4) {
-                return `${parts[2].padStart(2, '0')}/${parts[1].padStart(2, '0')}`;
-            } else {
-                return `${parts[0].padStart(2, '0')}/${parts[1].padStart(2, '0')}`;
+
+
+
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    const allDatesArr = React.useMemo(() => {
+        return Array.from(new Set(dateColumns.map(c => c.date)));
+    }, [dateColumns]);
+
+    const isNumericGrade = (g: Grade) => typeof g.point === 'number' && g.point >= 0;
+
+    const displayGrades = React.useMemo(() => {
+        return filteredGrades;
+    }, [filteredGrades]);
+
+    const studentDateGrades = React.useMemo(() => {
+        const map: { [studentId: string]: { [dateStr: string]: Grade[] } } = {};
+        filteredGrades.forEach(g => {
+            if (!g.date) return;
+            if (!map[g.student_id]) map[g.student_id] = {};
+            if (!map[g.student_id][g.date]) map[g.student_id][g.date] = [];
+            map[g.student_id][g.date].push(g);
+        });
+        return map;
+    }, [filteredGrades]);
+
+    const { absencePct, avgGradeVal, totalSummatives } = React.useMemo(() => {
+        let totalEntries = 0;
+        let totalAbsences = 0;
+        let totalNumericPoints = 0;
+        let numericCount = 0;
+        let summativesCount = 0;
+
+        filteredGrades.forEach(g => {
+            totalEntries++;
+            if (g.point === -2 || g.checked === false) {
+                totalAbsences++;
             }
-        }
-        const date = new Date(dateStr);
-        if (!isNaN(date.getTime())) {
-            return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
-        }
-        return dateStr;
-    };
+            if (typeof g.point === 'number' && g.point >= 0) {
+                totalNumericPoints += g.point;
+                numericCount++;
+            }
+            if (g.pointType === 3) {
+                summativesCount++;
+            }
+        });
 
-    const getSingleGradeDisplay = (g: Grade) => {
-        if (!g) return '';
-        if (g.point === -1) return g.checked ? '✓' : '✗';
-        if (g.point === -2) return 'X';
-        if (g.point === -3) return 'ჩთ';
-        if (typeof g.point === 'number' && g.point >= 0) return g.point.toString();
-        return '✓';
-    };
+        const absPct = totalEntries > 0 ? ((totalAbsences / totalEntries) * 100).toFixed(0) : '0';
+        const avgVal = numericCount > 0 ? (totalNumericPoints / numericCount).toFixed(1) : '-';
 
+        return {
+            absencePct: absPct,
+            avgGradeVal: avgVal,
+            totalSummatives: summativesCount
+        };
+    }, [filteredGrades]);
 
     const filteredStudents = mobileSearchQuery.trim()
         ? sortedStudents.filter(s => `${s.name} ${s.surname}`.toLowerCase().includes(mobileSearchQuery.toLowerCase()))
@@ -664,6 +783,14 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
 
     const currentSubjectObj = subjects.find(s => String(s._id) === String(selectedSubject)) || availableTeacherSubjects?.find(s => String(s.id) === String(selectedSubject));
     const displaySubjectTitle = currentSubjectObj ? currentSubjectObj.name : (selectedSubject !== 'all' && subjectName ? subjectName : (selectedSubject === 'all' ? 'ყველა საგანი' : ''));
+
+    if (loading) {
+        return (
+            <div style={{ color: '#2e1065', textAlign: 'center', marginTop: '60px', fontSize: '18px', fontWeight: 700 }}>
+                იტვირთება...
+            </div>
+        );
+    }
 
     return (
         <div style={{
@@ -1127,7 +1254,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                             <div style={{ padding: '16px 18px', borderTop: `1px solid ${cardBorder}`, display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                     <span style={{ fontSize: '12px', fontWeight: 800, color: subTextColor, textTransform: 'uppercase' }}>
-                                                        ნიშნების ისტორია ({allDatesArr.length} თარიღი)
+                                                        ნიშნების ისტორია ({dateColumns.length} სვეტი)
                                                     </span>
                                                     <button
                                                         type="button"
@@ -1150,16 +1277,16 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                                     </button>
                                                 </div>
 
-                                                {allDatesArr.length === 0 ? (
+                                                {dateColumns.length === 0 ? (
                                                     <div style={{ padding: '16px', textAlign: 'center', color: subTextColor, fontSize: '13px' }}>
                                                         ამ პერიოდში ნიშნები არ არის ჩაწერილი
                                                     </div>
                                                 ) : (
                                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px' }}>
-                                                        {allDatesArr.map(date => {
-                                                            const gradeList = studentDateGrades[student._id]?.[date] || [];
+                                                        {dateColumns.map(col => {
+                                                            const gradeList = studentColumnGrades[student._id]?.[col.key] || [];
                                                             const primaryGrade = gradeList[0] || null;
-                                                            const datePointType = datesPointTypes[date] || 2;
+                                                            const datePointType = columnPointTypes[col.key] || 2;
                                                             const effectivePointType = primaryGrade ? (primaryGrade.pointType || datePointType) : datePointType;
 
                                                             let bgPill = '#84c4cb'; // Mint Classwork
@@ -1174,8 +1301,8 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
 
                                                             return (
                                                                 <div
-                                                                    key={date}
-                                                                    onClick={() => openEditModalForGrade(student, date, primaryGrade)}
+                                                                    key={col.key}
+                                                                    onClick={() => openEditModalForGrade(student, col.date, primaryGrade, col.lessonNum)}
                                                                     style={{
                                                                         background: bgPill,
                                                                         borderRadius: '12px',
@@ -1191,7 +1318,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                                                     }}
                                                                 >
                                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', fontWeight: 800, color: '#1e293b' }}>
-                                                                        <span>{formatDate(date)}</span>
+                                                                        <span>{col.label}</span>
                                                                         <span style={{ fontSize: '10px', opacity: 0.8 }}>{typeTitle}</span>
                                                                     </div>
 
@@ -1267,10 +1394,10 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                     }}>
                                         მოსწავლე
                                     </th>
-                                    {allDatesArr.map(date => (
-                                        <th key={date} style={{
+                                    {dateColumns.map(col => (
+                                        <th key={col.key} style={{
                                             textAlign: 'center',
-                                            minWidth: '55px',
+                                            minWidth: '60px',
                                             padding: '10px 4px',
                                             color: '#64748b',
                                             fontWeight: 700,
@@ -1280,9 +1407,9 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                             background: '#ffffff'
                                         }}>
                                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                                                <span>{formatDate(date)}</span>
+                                                <span>{col.label}</span>
                                                 <button
-                                                    onClick={() => handleDeleteDay(date)}
+                                                    onClick={() => handleDeleteDay(col.date)}
                                                     title="დღის წაშლა"
                                                     style={{
                                                         background: 'transparent',
@@ -1305,8 +1432,8 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                             </thead>
                             <tbody>
                                 {students.length > 0 ? students.map((student, idx) => {
-                                    const studentAbsenceCount = allDatesArr.reduce((count, date) => {
-                                        const gradeList = studentDateGrades[student._id]?.[date] || [];
+                                    const studentAbsenceCount = dateColumns.reduce((count, col) => {
+                                        const gradeList = studentColumnGrades[student._id]?.[col.key] || [];
                                         const isAbsent = gradeList.some(g => g.point === -2 || g.checked === false);
                                         return count + (isAbsent ? 1 : 0);
                                     }, 0);
@@ -1350,10 +1477,10 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                             </td>
 
                                         {/* Date Cells */}
-                                        {allDatesArr.map(date => {
-                                            const gradeList = studentDateGrades[student._id]?.[date] || [];
+                                        {dateColumns.map(col => {
+                                            const gradeList = studentColumnGrades[student._id]?.[col.key] || [];
                                             const primaryGrade = gradeList[0] || null;
-                                            const datePointType = datesPointTypes[date] || 2;
+                                            const datePointType = columnPointTypes[col.key] || 2;
                                             const effectivePointType = primaryGrade ? (primaryGrade.pointType || datePointType) : datePointType;
 
                                             let cellBgColor = '#84c4cb'; // Default Mint / Classwork
@@ -1365,9 +1492,9 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
 
                                             return (
                                                 <td
-                                                    key={date}
-                                                    onClick={() => openEditModalForGrade(student, date, primaryGrade)}
-                                                    title={primaryGrade ? `დააჭირეთ ჩასასწორებლად (${formatDate(date)})` : `დააჭირეთ ნიშნის დასამატებლად (${formatDate(date)})`}
+                                                    key={col.key}
+                                                    onClick={() => openEditModalForGrade(student, col.date, primaryGrade, col.lessonNum)}
+                                                    title={primaryGrade ? `დააჭირეთ ჩასასწორებლად (${col.label})` : `დააჭირეთ ნიშნის დასამატებლად (${col.label})`}
                                                     style={{
                                                         textAlign: 'center',
                                                         padding: '8px 3px',
@@ -1419,7 +1546,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                 );
                             }) : (
                                     <tr>
-                                        <td colSpan={allDatesArr.length + 1} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                                        <td colSpan={dateColumns.length + 1} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
                                             მოსწავლეები ვერ მოიძებნა
                                         </td>
                                     </tr>
