@@ -33,6 +33,20 @@ const ArrowLeftIcon = FaArrowLeft as React.ComponentType<{
 const fromDate = `${new Date().getFullYear()}-01-01`;
 const toDate = new Date().toISOString().slice(0, 10);
 
+const extractIdStr = (val: any): string => {
+  if (!val) return "";
+  if (typeof val === "object") {
+    if (val._id) return String(val._id);
+    if (val.$oid) return String(val.$oid);
+  }
+  return String(val);
+};
+
+const isSameId = (a: any, b: any): boolean => {
+  if (!a || !b) return false;
+  return extractIdStr(a) === extractIdStr(b);
+};
+
 const TutorClassDetails: React.FC<{
   allSubjects: any[];
   allTeachers: any[];
@@ -465,14 +479,14 @@ const Teacher: React.FC = () => {
       }
       setAllSubjects(subjects);
       // Tutor classes
-      const tutor = allClasses.filter((cls: any) => cls.damrigebeli === teacherId);
+      const tutor = allClasses.filter((cls: any) => isSameId(cls.damrigebeli, teacherId));
       // Teaches classes (any subject with hours_per_week > 0)
       const teaches = allClasses
         .filter(
           (cls: any) =>
             Array.isArray(cls.subjects) &&
             cls.subjects.some((subj: any) => 
-              subj.teacher_id === teacherId && 
+              isSameId(subj.teacher_id, teacherId) && 
               (subj.hours_per_week === undefined || subj.hours_per_week > 0)
             ),
         )
@@ -480,12 +494,12 @@ const Teacher: React.FC = () => {
           // Find subjects this teacher teaches in this class
           const teacherSubjects = (cls.subjects || [])
             .filter((subj: any) => 
-              subj.teacher_id === teacherId && 
+              isSameId(subj.teacher_id, teacherId) && 
               (subj.hours_per_week === undefined || subj.hours_per_week > 0)
             )
             .map((subj: any) => {
               const subjObj = subjects.find(
-                (s: any) => s._id === subj.subject_id,
+                (s: any) => isSameId(s._id, subj.subject_id),
               );
               return subjObj ? subjObj.name : "";
             })
@@ -1020,6 +1034,30 @@ const Teacher: React.FC = () => {
     const [isProjectToggle, setIsProjectToggle] = useState(false);
     const [lessonNum, setLessonNum] = useState<number>(1);
     const [loading, setLoading] = useState(true);
+    const [filledDates, setFilledDates] = useState<Set<string>>(new Set());
+    const [isDraftLoaded, setIsDraftLoaded] = useState(false);
+
+    useEffect(() => {
+      if (!id || !selectedSubject) return;
+      const fetchFilledDates = async () => {
+        try {
+          const res = await fetch(`/api/grades?class_id=${id}&subject_id=${selectedSubject}`);
+          if (res.ok) {
+            const gradesList = await res.json();
+            if (Array.isArray(gradesList)) {
+              const datesSet = new Set<string>();
+              gradesList.forEach((g: any) => {
+                if (g.date) datesSet.add(g.date);
+              });
+              setFilledDates(datesSet);
+            }
+          }
+        } catch (err) {
+          console.error("Error fetching filled dates:", err);
+        }
+      };
+      fetchFilledDates();
+    }, [id, selectedSubject]);
 
     useEffect(() => {
       if (!pointType) setPointType(2);
@@ -1119,20 +1157,38 @@ const Teacher: React.FC = () => {
       }
     }, [year, month, day]);
 
-    // Fetch existing grades when date, subject, or lessonNum changes
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const draftStorageKey = `draft_grades_${id}_${selectedSubject}_${dateStr}_${lessonNum}`;
+
+    // Fetch existing grades or load draft when date, subject, or lessonNum changes
     useEffect(() => {
       if (!id || !selectedSubject || !day || !month || !year || students.length === 0) return;
-      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      
+      const savedDraft = localStorage.getItem(draftStorageKey);
+      if (savedDraft) {
+        try {
+          const parsed = JSON.parse(savedDraft);
+          if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+            setGrades(parsed);
+            setIsDraftLoaded(true);
+            return;
+          }
+        } catch (e) {
+          console.error("Error parsing saved draft:", e);
+        }
+      }
+
+      setIsDraftLoaded(false);
       const fetchExistingGrades = async () => {
         try {
           const res = await fetch(`/api/grades?class_id=${id}&subject_id=${selectedSubject}&date=${dateStr}&lesson_num=${lessonNum}`);
           if (res.ok) {
             const existingGradesList = await res.json();
+            const newGradesState: Record<string, any> = {};
+            students.forEach((s: any) => {
+              newGradesState[s._id] = { attendance: true, point: "", comment: "" };
+            });
             if (Array.isArray(existingGradesList) && existingGradesList.length > 0) {
-              const newGradesState: Record<string, any> = {};
-              students.forEach((s: any) => {
-                newGradesState[s._id] = { attendance: true, point: "", comment: "" };
-              });
               existingGradesList.forEach((g: any) => {
                 const sId = String(g.student_id);
                 newGradesState[sId] = {
@@ -1142,15 +1198,58 @@ const Teacher: React.FC = () => {
                   excuse_reason: g.excuse_reason
                 };
               });
-              setGrades(newGradesState);
             }
+            setGrades(newGradesState);
           }
         } catch (err) {
           console.error("Error fetching existing grades:", err);
         }
       };
       fetchExistingGrades();
-    }, [id, selectedSubject, year, month, day, lessonNum, students]);
+    }, [id, selectedSubject, year, month, day, lessonNum, students, draftStorageKey]);
+
+    // Save draft automatically on grade changes
+    useEffect(() => {
+      if (!id || !selectedSubject || students.length === 0 || !grades || Object.keys(grades).length === 0) return;
+      const hasAnyData = Object.values(grades).some(
+        (g: any) => g.point !== "" || (g.comment && g.comment.trim() !== "") || g.attendance === false
+      );
+      if (hasAnyData) {
+        localStorage.setItem(draftStorageKey, JSON.stringify(grades));
+      }
+    }, [grades, draftStorageKey, id, selectedSubject, students]);
+
+    const handleDiscardDraft = () => {
+      localStorage.removeItem(draftStorageKey);
+      setIsDraftLoaded(false);
+      const fetchExistingGrades = async () => {
+        try {
+          const res = await fetch(`/api/grades?class_id=${id}&subject_id=${selectedSubject}&date=${dateStr}&lesson_num=${lessonNum}`);
+          if (res.ok) {
+            const existingGradesList = await res.json();
+            const newGradesState: Record<string, any> = {};
+            students.forEach((s: any) => {
+              newGradesState[s._id] = { attendance: true, point: "", comment: "" };
+            });
+            if (Array.isArray(existingGradesList) && existingGradesList.length > 0) {
+              existingGradesList.forEach((g: any) => {
+                const sId = String(g.student_id);
+                newGradesState[sId] = {
+                  attendance: g.checked ?? true,
+                  point: g.point >= 0 ? String(g.point) : (g.comment || (g.is_formative ? "განმავითარებელი" : "")),
+                  comment: g.comment || "",
+                  excuse_reason: g.excuse_reason
+                };
+              });
+            }
+            setGrades(newGradesState);
+          }
+        } catch (err) {
+          console.error("Error fetching existing grades:", err);
+        }
+      };
+      fetchExistingGrades();
+    };
 
     // Current year is fixed to current year
     const currentYear = new Date().getFullYear();
@@ -1169,18 +1268,39 @@ const Teacher: React.FC = () => {
         minDateObj.setTime(maxDateObj.getTime() - 14 * 24 * 60 * 60 * 1000);
       }
 
-      const classObj = teachesClasses.find((cls: any) => cls._id === id);
+      const classObj = teachesClasses.find((cls: any) => isSameId(cls._id, id))
+        || tutorClasses.find((cls: any) => isSameId(cls._id, id));
 
       const hasLessonOnDay = (dayOfWeekIdx: number) => {
-        if (!classObj || !classObj.calendar || !Array.isArray(classObj.calendar)) return false;
+        if (!classObj) return false;
+
+        // Fallback: If class calendar is missing or completely empty, allow weekdays if teacher teaches in this class
+        if (!classObj.calendar || !Array.isArray(classObj.calendar) || classObj.calendar.length === 0) {
+          return true;
+        }
+
         const dayLessons = classObj.calendar[dayOfWeekIdx];
-        if (!dayLessons || !Array.isArray(dayLessons)) return false;
+        if (!dayLessons || !Array.isArray(dayLessons) || dayLessons.length === 0) {
+          const totalLessons = classObj.calendar.reduce((sum: number, arr: any) => sum + (Array.isArray(arr) ? arr.length : 0), 0);
+          if (totalLessons === 0) return true;
+          return false;
+        }
 
         return dayLessons.some((entry: any) => {
           if (!entry) return false;
-          const teacherMatch = entry.teacher_id && entry.teacher_id.toString() === currentTeacherId;
-          const subjectMatch = !selectedSubject || (entry.subject_id && entry.subject_id.toString() === selectedSubject);
-          return teacherMatch && subjectMatch;
+
+          const subjectMatch = !selectedSubject || isSameId(entry.subject_id, selectedSubject);
+          if (!subjectMatch) return false;
+
+          const entryTeacherStr = extractIdStr(entry.teacher_id);
+          const isDummyTeacher = !entryTeacherStr || entryTeacherStr === "000000000000000000000000";
+
+          const isAssignedTeacherForSubject = classObj.subjects && Array.isArray(classObj.subjects) && classObj.subjects.some((s: any) =>
+            isSameId(s.subject_id, selectedSubject) && isSameId(s.teacher_id, currentTeacherId)
+          );
+
+          const teacherMatch = isDummyTeacher || isSameId(entry.teacher_id, currentTeacherId) || isAssignedTeacherForSubject;
+          return teacherMatch;
         });
       };
 
@@ -1215,7 +1335,7 @@ const Teacher: React.FC = () => {
       }
 
       return dates;
-    }, [gradeEntryStartDate, currentTeacherId, selectedSubject, teachesClasses, id]);
+    }, [gradeEntryStartDate, currentTeacherId, selectedSubject, teachesClasses, tutorClasses, id]);
 
     // Auto-select latest allowed date if the current selected date is not in allowed list
     useEffect(() => {
@@ -1327,6 +1447,9 @@ const Teacher: React.FC = () => {
         });
         if (res.ok) {
           successCount++;
+          localStorage.removeItem(draftStorageKey);
+          setIsDraftLoaded(false);
+          setFilledDates((prev) => new Set(prev).add(dateStr));
           setInfoModalMessage("ყველა ნიშანი წარმატებით შეინახა!");
           setInfoModalOpen(true);
         } else {
@@ -1346,7 +1469,8 @@ const Teacher: React.FC = () => {
     };
 
     // Find subjects for this teacher in this class
-    const classObj = teachesClasses.find((cls: any) => cls._id === id);
+    const classObj = teachesClasses.find((cls: any) => isSameId(cls._id, id))
+      || tutorClasses.find((cls: any) => isSameId(cls._id, id));
     let teacherSubjects: any[] = [];
     if (classObj && Array.isArray(classObj.subjects)) {
       const loginData = JSON.parse(localStorage.getItem("login") || "{}");
@@ -1355,7 +1479,7 @@ const Teacher: React.FC = () => {
       if (teacher) {
         teacherSubjects = classObj.subjects.filter(
           (subj: any) => 
-            subj.teacher_id === teacher._id && 
+            isSameId(subj.teacher_id, teacher._id) && 
             (subj.hours_per_week === undefined || subj.hours_per_week > 0),
         );
       }
@@ -1364,10 +1488,10 @@ const Teacher: React.FC = () => {
     // Auto-select subject if only 1 subject taught by teacher in this class and none selected
     useEffect(() => {
       if (!selectedSubject && teacherSubjects.length === 1 && teacherSubjects[0].subject_id) {
-        setSelectedSubject(teacherSubjects[0].subject_id);
+        setSelectedSubject(extractIdStr(teacherSubjects[0].subject_id));
       } else if (!selectedSubject && urlSubjectName) {
         const found = allSubjects.find((s: any) => s.name?.toLowerCase() === urlSubjectName.toLowerCase());
-        if (found) setSelectedSubject(found._id);
+        if (found) setSelectedSubject(extractIdStr(found._id));
       }
     }, [teacherSubjects, selectedSubject, urlSubjectName, allSubjects]);
 
@@ -1486,7 +1610,14 @@ const Teacher: React.FC = () => {
             </div>
 
             <div className="admin-form-group">
-              <label className="admin-label">თარიღი:</label>
+              <label className="admin-label">
+                თარიღი:
+                {filledDates.has(`${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`) && (
+                  <span style={{ color: '#16a34a', fontSize: '13px', fontWeight: 800, marginLeft: '8px' }}>
+                    ✓ შეყვანილია
+                  </span>
+                )}
+              </label>
               {allowedDatesList.length === 0 ? (
                 <div style={{ color: "#ff5252", fontSize: '12px', marginTop: '10px' }}>
                   ქულების ჩაწერა შეუძლებელია
@@ -1503,12 +1634,25 @@ const Teacher: React.FC = () => {
                     }
                   }}
                   className="admin-select"
+                  style={{
+                    borderColor: filledDates.has(`${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`) ? '#22c55e' : undefined
+                  }}
                 >
-                  {allowedDatesList.map((item) => (
-                    <option key={item.dateStr} value={item.dateStr}>
-                      {item.label}
-                    </option>
-                  ))}
+                  {allowedDatesList.map((item) => {
+                    const isFilled = filledDates.has(item.dateStr);
+                    return (
+                      <option
+                        key={item.dateStr}
+                        value={item.dateStr}
+                        style={{
+                          color: isFilled ? '#16a34a' : 'inherit',
+                          fontWeight: isFilled ? 800 : 400
+                        }}
+                      >
+                        {item.label} {isFilled ? '✓' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               )}
             </div>
@@ -1530,10 +1674,11 @@ const Teacher: React.FC = () => {
               const selectedDateObj = new Date(year, month, day);
               const jsDay = selectedDateObj.getDay();
               const scheduleDayIdx = jsDay >= 1 && jsDay <= 5 ? jsDay - 1 : -1;
-              const classObj = teachesClasses.find((cls: any) => cls._id === id);
+              const classObj = teachesClasses.find((cls: any) => isSameId(cls._id, id))
+                || tutorClasses.find((cls: any) => isSameId(cls._id, id));
               const daySchedule = scheduleDayIdx >= 0 && classObj?.calendar ? classObj.calendar[scheduleDayIdx] : [];
               const scheduledLessonsCount = selectedSubject && Array.isArray(daySchedule)
-                ? daySchedule.filter((slot: any) => slot && String(slot.subject_id) === String(selectedSubject)).length
+                ? daySchedule.filter((slot: any) => slot && isSameId(slot.subject_id, selectedSubject)).length
                 : 1;
               const maxLessons = Math.max(1, scheduledLessonsCount);
 
@@ -1592,10 +1737,45 @@ const Teacher: React.FC = () => {
             <div className="admin-view-header" style={{ padding: '20px 24px', flexDirection: 'column', alignItems: 'flex-start', marginBottom: 0 }}>
               <h3 className="admin-view-title" style={{ fontSize: '20px' }}>მოსწავლეთა სია</h3>
               <div style={{ display: "flex", gap: "20px", flexWrap: "wrap", fontSize: '14px', opacity: 0.8 }}>
-                <span><strong>საგანი:</strong> {allSubjects.find((s) => s._id === selectedSubject)?.name}</span>
+                <span><strong>საგანი:</strong> {allSubjects.find((s) => isSameId(s._id, selectedSubject))?.name}</span>
                 <span><strong>თარიღი:</strong> {String(day).padStart(2, '0')}.${String(month + 1).padStart(2, '0')}.${year}</span>
               </div>
             </div>
+
+            {isDraftLoaded && (
+              <div style={{
+                background: '#fffbeeb0',
+                border: '1.5px solid #fde68a',
+                color: '#b45309',
+                padding: '10px 18px',
+                borderRadius: '14px',
+                margin: '16px 24px 0',
+                fontSize: '13px',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '8px'
+              }}>
+                <span>📌 აღდგენილია დროებით შენახული შავი ჩანაწერი (Draft Autosave)</span>
+                <button
+                  onClick={handleDiscardDraft}
+                  style={{
+                    background: '#fef3c7',
+                    border: '1px solid #fcd34d',
+                    color: '#92400e',
+                    padding: '4px 12px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontWeight: 800
+                  }}
+                >
+                  🗑 ჩანაწერის წაშლა
+                </button>
+              </div>
+            )}
 
             {(() => {
               const classObj = teachesClasses.find((cls: any) => cls._id === id);
@@ -1719,13 +1899,35 @@ const Teacher: React.FC = () => {
                 </>
               );
             })()}
-            <div style={{ padding: '24px', display: 'flex', justifyContent: 'center' }}>
+            <div style={{
+              position: 'sticky',
+              bottom: '16px',
+              left: 0,
+              right: 0,
+              padding: '16px 24px',
+              display: 'flex',
+              justifyContent: 'center',
+              zIndex: 90,
+              pointerEvents: 'none',
+            }}>
               <button
                 onClick={handleSubmit}
                 className="admin-submit-btn"
-                style={{ maxWidth: '300px' }}
+                style={{
+                  maxWidth: '320px',
+                  width: '100%',
+                  pointerEvents: 'auto',
+                  boxShadow: '0 10px 25px rgba(37, 99, 235, 0.4), 0 4px 10px rgba(0, 0, 0, 0.1)',
+                  fontSize: '15px',
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  borderRadius: '16px'
+                }}
               >
-                მონაცემების შენახვა
+                💾 მონაცემების შენახვა
               </button>
             </div>
           </div>
