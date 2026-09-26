@@ -1380,14 +1380,18 @@ const Teacher: React.FC = () => {
     }, [allowedDatesList, year, month, day]);
 
     const handleAttendanceChange = (studentId: string, checked: boolean) => {
-      setGrades((prev) => ({
-        ...prev,
-        [studentId]: {
-          ...prev[studentId],
-          attendance: checked,
-          point: checked ? prev[studentId].point : "",
-        },
-      }));
+      setGrades((prev) => {
+        const currentGrade = prev[studentId];
+        const wasAbsent = currentGrade?.attendance === false;
+        return {
+          ...prev,
+          [studentId]: {
+            ...currentGrade,
+            attendance: checked,
+            point: checked ? (wasAbsent ? "" : (currentGrade?.point ?? "")) : "",
+          },
+        };
+      });
     };
     const handlePointChange = (studentId: string, value: string) => {
       setGrades((prev) => ({
@@ -1912,7 +1916,7 @@ const Teacher: React.FC = () => {
                                   className="admin-select"
                                   style={{ padding: '8px 12px', fontSize: '14px', opacity: checked ? 1 : 0.5, width: '100%' }}
                                 >
-                                  <option value="">აირჩიეთ...</option>
+                                  <option value="">ნიშნის გარეშე</option>
                                   {Array.from({ length: 11 }, (_, n) => n).map((n) => (
                                     <option key={n} value={n}>{n}</option>
                                   ))}

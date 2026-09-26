@@ -583,16 +583,19 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
 
         if (!grade) {
             setIsAttending(true);
-            setEditPoint('10');
+            setEditPoint('none');
         } else if (grade.point === -2 || grade.checked === false) {
             setIsAttending(false);
             setEditPoint('X');
         } else if (grade.point === -3) {
             setIsAttending(true);
             setEditPoint('ჩთ');
+        } else if (grade.point === -1) {
+            setIsAttending(true);
+            setEditPoint('none');
         } else {
             setIsAttending(true);
-            setEditPoint(grade.point === -1 ? '10' : grade.point.toString());
+            setEditPoint(grade.point.toString());
         }
         setEditModalOpen(true);
     };
@@ -617,9 +620,12 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
             } else if (editPoint === 'არა ჩთ') {
                 pointVal = -3;
                 checkedVal = false;
+            } else if (editPoint === 'none' || editPoint === '' || editPoint === '-1') {
+                pointVal = -1;
+                checkedVal = true;
             } else {
                 pointVal = parseInt(editPoint, 10);
-                if (isNaN(pointVal)) pointVal = 10;
+                if (isNaN(pointVal)) pointVal = -1;
                 checkedVal = true;
             }
 
@@ -1256,25 +1262,6 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                                     <span style={{ fontSize: '12px', fontWeight: 800, color: subTextColor, textTransform: 'uppercase' }}>
                                                         ნიშნების ისტორია ({dateColumns.length} სვეტი)
                                                     </span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => openEditModalForGrade(student, todayStr, null)}
-                                                        style={{
-                                                            background: '#2563eb',
-                                                            color: 'white',
-                                                            border: 'none',
-                                                            padding: '6px 14px',
-                                                            borderRadius: '10px',
-                                                            fontWeight: 800,
-                                                            fontSize: '12px',
-                                                            cursor: 'pointer',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '4px'
-                                                        }}
-                                                    >
-                                                        + ნიშნის დამატება
-                                                    </button>
                                                 </div>
 
                                                 {dateColumns.length === 0 ? (
@@ -1302,12 +1289,11 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                                             return (
                                                                 <div
                                                                     key={col.key}
-                                                                    onClick={() => openEditModalForGrade(student, col.date, primaryGrade, col.lessonNum)}
                                                                     style={{
                                                                         background: bgPill,
                                                                         borderRadius: '12px',
                                                                         padding: '10px 12px',
-                                                                        cursor: 'pointer',
+                                                                        cursor: 'default',
                                                                         display: 'flex',
                                                                         flexDirection: 'column',
                                                                         justifyContent: 'space-between',
@@ -1337,7 +1323,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                                                                 );
                                                                             })
                                                                         ) : (
-                                                                            <span style={{ fontSize: '12px', opacity: 0.5, fontWeight: 700 }}>+ დაწერა</span>
+                                                                            <span style={{ fontSize: '12px', opacity: 0.5, fontWeight: 700 }}>—</span>
                                                                         )}
                                                                     </div>
 
@@ -1408,23 +1394,6 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                         }}>
                                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                                                 <span>{col.label}</span>
-                                                <button
-                                                    onClick={() => handleDeleteDay(col.date)}
-                                                    title="დღის წაშლა"
-                                                    style={{
-                                                        background: 'transparent',
-                                                        border: 'none',
-                                                        color: '#ef4444',
-                                                        fontSize: '10px',
-                                                        cursor: 'pointer',
-                                                        opacity: 0.5,
-                                                        padding: 0
-                                                    }}
-                                                    onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                                                    onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
-                                                >
-                                                    ✕
-                                                </button>
                                             </div>
                                         </th>
                                     ))}
@@ -1696,8 +1665,11 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                             type="button"
                                             disabled={!canUserEditDate}
                                             onClick={() => {
+                                                const wasAbsent = !isAttending;
                                                 setIsAttending(true);
-                                                if (editPoint === 'X') setEditPoint(isProjectSubject ? 'ჩთ' : '10');
+                                                if (wasAbsent) {
+                                                    setEditPoint(isProjectSubject ? 'ჩთ' : 'none');
+                                                }
                                             }}
                                             style={{
                                                 flex: 1,
@@ -1790,52 +1762,74 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                             </button>
                                         </div>
                                     ) : (
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px' }}>
-                                            {['10', '9', '8', '7', '6', '5', '4', '3', '2', '1'].map((pt) => {
-                                                const isSelected = editPoint === pt;
-                                                return (
-                                                    <button
-                                                        key={pt}
-                                                        type="button"
-                                                        disabled={!canUserEditDate}
-                                                        onClick={() => setEditPoint(pt)}
-                                                        style={{
-                                                            padding: '12px 0',
-                                                            borderRadius: '10px',
-                                                            border: isSelected ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                                                            background: isSelected ? '#dbeafe' : '#f8fafc',
-                                                            color: isSelected ? '#1d4ed8' : '#334155',
-                                                            fontWeight: 800,
-                                                            fontSize: '16px',
-                                                            cursor: canUserEditDate ? 'pointer' : 'not-allowed',
-                                                            opacity: canUserEditDate ? 1 : 0.6,
-                                                            transition: 'all 0.12s'
-                                                        }}
-                                                    >
-                                                        {pt}
-                                                    </button>
-                                                );
-                                            })}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                             <button
                                                 type="button"
                                                 disabled={!canUserEditDate}
-                                                onClick={() => setEditPoint('0')}
+                                                onClick={() => setEditPoint('none')}
                                                 style={{
-                                                    gridColumn: 'span 5',
+                                                    width: '100%',
                                                     padding: '10px 0',
                                                     borderRadius: '10px',
-                                                    border: editPoint === '0' ? '2px solid #dc2626' : '1px solid #cbd5e1',
-                                                    background: editPoint === '0' ? '#fee2e2' : '#f8fafc',
-                                                    color: editPoint === '0' ? '#b91c1c' : '#334155',
+                                                    border: (editPoint === 'none' || editPoint === '') ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                                                    background: (editPoint === 'none' || editPoint === '') ? '#dbeafe' : '#f8fafc',
+                                                    color: (editPoint === 'none' || editPoint === '') ? '#1d4ed8' : '#334155',
                                                     fontWeight: 800,
-                                                    fontSize: '16px',
+                                                    fontSize: '14px',
                                                     cursor: canUserEditDate ? 'pointer' : 'not-allowed',
                                                     opacity: canUserEditDate ? 1 : 0.6,
                                                     transition: 'all 0.12s'
                                                 }}
                                             >
-                                                0
+                                                ნიშნის გარეშე
                                             </button>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px' }}>
+                                                {['10', '9', '8', '7', '6', '5', '4', '3', '2', '1'].map((pt) => {
+                                                    const isSelected = editPoint === pt;
+                                                    return (
+                                                        <button
+                                                            key={pt}
+                                                            type="button"
+                                                            disabled={!canUserEditDate}
+                                                            onClick={() => setEditPoint(pt)}
+                                                            style={{
+                                                                padding: '12px 0',
+                                                                borderRadius: '10px',
+                                                                border: isSelected ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                                                                background: isSelected ? '#dbeafe' : '#f8fafc',
+                                                                color: isSelected ? '#1d4ed8' : '#334155',
+                                                                fontWeight: 800,
+                                                                fontSize: '16px',
+                                                                cursor: canUserEditDate ? 'pointer' : 'not-allowed',
+                                                                opacity: canUserEditDate ? 1 : 0.6,
+                                                                transition: 'all 0.12s'
+                                                            }}
+                                                        >
+                                                            {pt}
+                                                        </button>
+                                                    );
+                                                })}
+                                                <button
+                                                    type="button"
+                                                    disabled={!canUserEditDate}
+                                                    onClick={() => setEditPoint('0')}
+                                                    style={{
+                                                        gridColumn: 'span 5',
+                                                        padding: '10px 0',
+                                                        borderRadius: '10px',
+                                                        border: editPoint === '0' ? '2px solid #dc2626' : '1px solid #cbd5e1',
+                                                        background: editPoint === '0' ? '#fee2e2' : '#f8fafc',
+                                                        color: editPoint === '0' ? '#b91c1c' : '#334155',
+                                                        fontWeight: 800,
+                                                        fontSize: '16px',
+                                                        cursor: canUserEditDate ? 'pointer' : 'not-allowed',
+                                                        opacity: canUserEditDate ? 1 : 0.6,
+                                                        transition: 'all 0.12s'
+                                                    }}
+                                                >
+                                                    0
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -1885,25 +1879,6 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                     >
                                         {savingGrade ? 'ინახება...' : 'შენახვა'}
                                     </button>
-                                    {selectedCell.targetGrade && (
-                                        <button
-                                            type="button"
-                                            onClick={handleDeleteSingleGrade}
-                                            disabled={savingGrade || !canUserEditDate}
-                                            style={{
-                                                padding: '12px 18px',
-                                                borderRadius: '10px',
-                                                background: (!canUserEditDate || savingGrade) ? '#f1f5f9' : '#fee2e2',
-                                                border: (!canUserEditDate || savingGrade) ? '1px solid #cbd5e1' : '1px solid #fca5a5',
-                                                color: (!canUserEditDate || savingGrade) ? '#94a3b8' : '#b91c1c',
-                                                fontWeight: 700,
-                                                fontSize: '14px',
-                                                cursor: (!canUserEditDate || savingGrade) ? 'not-allowed' : 'pointer'
-                                            }}
-                                        >
-                                            წაშლა
-                                        </button>
-                                    )}
                                     <button
                                         type="button"
                                         onClick={() => setEditModalOpen(false)}
