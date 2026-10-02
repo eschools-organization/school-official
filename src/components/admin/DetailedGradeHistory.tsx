@@ -47,7 +47,7 @@ interface DetailedGradeHistoryProps {
 }
 
 const isDateEditableForUser = (dateStr: string, isAdminUser?: boolean): boolean => {
-    if (!isAdminUser) return false;
+    if (isAdminUser) return true;
     if (!dateStr) return true;
     const gradeDate = new Date(dateStr);
     if (isNaN(gradeDate.getTime())) return true;
@@ -595,10 +595,6 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
     };
 
     const openEditModalForGrade = (student: Student, date: string, grade: Grade | null, targetLessonNum: number = 1) => {
-        if (!isAdmin) {
-            alert('დამრიგებელს/მასწავლებელს ამ ხედიდან ნიშნის ჩასწორების უფლება არ აქვს. ჩასასწორებლად მიმართეთ ადმინისტრაციას.');
-            return;
-        }
         setSelectedCell({ student, date, targetGrade: grade, lessonNum: targetLessonNum });
         const defaultSubj = selectedSubject !== 'all' ? selectedSubject : (subjects[0]?._id || '');
         const subjId = grade?.subject_id || defaultSubj;
@@ -1487,17 +1483,15 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                                 <td
                                                     key={col.key}
                                                     onClick={() => {
-                                                        if (isAdmin) {
-                                                            openEditModalForGrade(student, col.date, primaryGrade, col.lessonNum);
-                                                        }
+                                                        openEditModalForGrade(student, col.date, primaryGrade, col.lessonNum);
                                                     }}
-                                                    title={isAdmin ? (primaryGrade ? `დააჭირეთ ჩასასწორებლად (${col.label})` : `დააჭირეთ ნიშნის დასამატებლად (${col.label})`) : col.label}
+                                                    title={primaryGrade ? `დააჭირეთ ჩასასწორებლად (${col.label})` : `დააჭირეთ ნიშნის დასამატებლად (${col.label})`}
                                                     style={{
                                                         textAlign: 'center',
                                                         padding: '8px 3px',
                                                         background: cellBgColor,
                                                         border: '1.5px solid #ffffff',
-                                                        cursor: isAdmin ? 'pointer' : 'default',
+                                                        cursor: 'pointer',
                                                         verticalAlign: 'middle',
                                                         transition: 'filter 0.15s'
                                                     }}
@@ -1882,8 +1876,8 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                             opacity: canUserEditDate ? 1 : 0.6
                                         }}
                                     >
-                                        <option value={1}>🟡 საშინაო (ლურჯი)</option>
-                                        <option value={2}>🔵 აღრიცხვა / საკლასო (ყვითელი)</option>
+                                        <option value={1}>🟡 საშინაო (ყვითელი)</option>
+                                        <option value={2}>🔵 აღრიცხვა / საკლასო (ლურჯი)</option>
                                         <option value={3}>🔴 შემაჯამებელი (წითელი)</option>
                                     </select>
                                 </div>
