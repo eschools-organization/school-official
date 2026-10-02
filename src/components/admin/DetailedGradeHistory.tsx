@@ -47,7 +47,7 @@ interface DetailedGradeHistoryProps {
 }
 
 const isDateEditableForUser = (dateStr: string, isAdminUser?: boolean): boolean => {
-    if (isAdminUser) return true;
+    if (!isAdminUser) return false;
     if (!dateStr) return true;
     const gradeDate = new Date(dateStr);
     if (isNaN(gradeDate.getTime())) return true;
@@ -448,6 +448,16 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
             studentDateGradesMap.get(key)!.push(g);
         });
 
+        // Determine if any student has multiple grades on a given date
+        const maxGradesPerStudentByDate = new Map<string, number>();
+        studentDateGradesMap.forEach((gList, key) => {
+            const dateStr = key.split('_')[1];
+            const currentMax = maxGradesPerStudentByDate.get(dateStr) || 0;
+            if (gList.length > currentMax) {
+                maxGradesPerStudentByDate.set(dateStr, gList.length);
+            }
+        });
+
         // Map each Grade reference -> effective lesson_num
         const gradeEffectiveLessonMap = new Map<Grade, number>();
         const mapByDate = new Map<string, Set<number>>();
@@ -458,31 +468,41 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                 mapByDate.set(dateStr, new Set<number>());
             }
 
-            const explicitLessonNums = gList.map(g => g.lesson_num).filter((n): n is number => Boolean(n && n > 0));
-            const hasDuplicates = new Set(explicitLessonNums).size < explicitLessonNums.length;
-            const hasMissing = explicitLessonNums.length < gList.length;
+            const maxGradesOnDate = maxGradesPerStudentByDate.get(dateStr) || 1;
 
-            if (!hasDuplicates && !hasMissing) {
+            if (maxGradesOnDate === 1) {
+                // When every student has at most 1 grade on this date, combine into single lesson column
                 gList.forEach(g => {
-                    const lNum = g.lesson_num!;
-                    gradeEffectiveLessonMap.set(g, lNum);
-                    mapByDate.get(dateStr)!.add(lNum);
+                    gradeEffectiveLessonMap.set(g, 1);
+                    mapByDate.get(dateStr)!.add(1);
                 });
             } else {
-                // Assign sequential lesson numbers (1, 2, 3...) per grade so multiple checks/grades get separate columns
-                const sortedList = [...gList].sort((a, b) => {
-                    if (a.lesson_num && b.lesson_num && a.lesson_num !== b.lesson_num) {
-                        return a.lesson_num - b.lesson_num;
-                    }
-                    if (a.time && b.time) return a.time.localeCompare(b.time);
-                    return (a._id || '').localeCompare(b._id || '');
-                });
+                const explicitLessonNums = gList.map(g => g.lesson_num).filter((n): n is number => Boolean(n && n > 0));
+                const hasDuplicates = new Set(explicitLessonNums).size < explicitLessonNums.length;
+                const hasMissing = explicitLessonNums.length < gList.length;
 
-                sortedList.forEach((g, idx) => {
-                    const lNum = (g.lesson_num && g.lesson_num > 0 && !hasDuplicates) ? g.lesson_num : (idx + 1);
-                    gradeEffectiveLessonMap.set(g, lNum);
-                    mapByDate.get(dateStr)!.add(lNum);
-                });
+                if (!hasDuplicates && !hasMissing) {
+                    gList.forEach(g => {
+                        const lNum = g.lesson_num!;
+                        gradeEffectiveLessonMap.set(g, lNum);
+                        mapByDate.get(dateStr)!.add(lNum);
+                    });
+                } else {
+                    // Assign sequential lesson numbers (1, 2, 3...) per grade so multiple checks/grades get separate columns
+                    const sortedList = [...gList].sort((a, b) => {
+                        if (a.lesson_num && b.lesson_num && a.lesson_num !== b.lesson_num) {
+                            return a.lesson_num - b.lesson_num;
+                        }
+                        if (a.time && b.time) return a.time.localeCompare(b.time);
+                        return (a._id || '').localeCompare(b._id || '');
+                    });
+
+                    sortedList.forEach((g, idx) => {
+                        const lNum = (g.lesson_num && g.lesson_num > 0 && !hasDuplicates) ? g.lesson_num : (idx + 1);
+                        gradeEffectiveLessonMap.set(g, lNum);
+                        mapByDate.get(dateStr)!.add(lNum);
+                    });
+                }
             }
         });
 
@@ -517,7 +537,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
             if (!g.date) return;
             if (!isDateInSemester(g.date, semesterFilter)) return;
 
-            const lNum = gradeEffectiveLessonMap.get(g) || (g.lesson_num && g.lesson_num > 0 ? g.lesson_num : 1);
+            const lNum = gradeEffectiveLessonMap.get(g) || 1;
             const colKey = `${g.date}_L${lNum}`;
 
             if (!studentColGrades[g.student_id]) studentColGrades[g.student_id] = {};
@@ -575,6 +595,10 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
     };
 
     const openEditModalForGrade = (student: Student, date: string, grade: Grade | null, targetLessonNum: number = 1) => {
+        if (!isAdmin) {
+            alert('დამრიგებელს/მასწავლებელს ამ ხედიდან ნიშნის ჩასწორების უფლება არ აქვს. ჩასასწორებლად მიმართეთ ადმინისტრაციას.');
+            return;
+        }
         setSelectedCell({ student, date, targetGrade: grade, lessonNum: targetLessonNum });
         const defaultSubj = selectedSubject !== 'all' ? selectedSubject : (subjects[0]?._id || '');
         const subjId = grade?.subject_id || defaultSubj;
@@ -1462,14 +1486,18 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                             return (
                                                 <td
                                                     key={col.key}
-                                                    onClick={() => openEditModalForGrade(student, col.date, primaryGrade, col.lessonNum)}
-                                                    title={primaryGrade ? `დააჭირეთ ჩასასწორებლად (${col.label})` : `დააჭირეთ ნიშნის დასამატებლად (${col.label})`}
+                                                    onClick={() => {
+                                                        if (isAdmin) {
+                                                            openEditModalForGrade(student, col.date, primaryGrade, col.lessonNum);
+                                                        }
+                                                    }}
+                                                    title={isAdmin ? (primaryGrade ? `დააჭირეთ ჩასასწორებლად (${col.label})` : `დააჭირეთ ნიშნის დასამატებლად (${col.label})`) : col.label}
                                                     style={{
                                                         textAlign: 'center',
                                                         padding: '8px 3px',
                                                         background: cellBgColor,
                                                         border: '1.5px solid #ffffff',
-                                                        cursor: 'pointer',
+                                                        cursor: isAdmin ? 'pointer' : 'default',
                                                         verticalAlign: 'middle',
                                                         transition: 'filter 0.15s'
                                                     }}
@@ -1854,8 +1882,8 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                             opacity: canUserEditDate ? 1 : 0.6
                                         }}
                                     >
-                                        <option value={1}>🔵 საშინაო (ლურჯი)</option>
-                                        <option value={2}>🟡 აღრიცხვა / საკლასო (ყვითელი)</option>
+                                        <option value={1}>🟡 საშინაო (ლურჯი)</option>
+                                        <option value={2}>🔵 აღრიცხვა / საკლასო (ყვითელი)</option>
                                         <option value={3}>🔴 შემაჯამებელი (წითელი)</option>
                                     </select>
                                 </div>

@@ -156,9 +156,33 @@ const Admin: React.FC = () => {
     const [selectedClassForExternals, setSelectedClassForExternals] = useState<{ id: string; name: string } | null>(null);
     const [selectedClassForReport, setSelectedClassForReport] = useState<{ id: string; name: string } | null>(null);
     const [showReportGenerator, setShowReportGenerator] = useState(false);
-    const [selectedStudentForCard, setSelectedStudentForCard] = useState<Student | null>(null);
+    const [selectedStudentForCard, setSelectedStudentForCard] = useState<Student | null>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('admin_selected_student_card');
+            if (saved) {
+                try { return JSON.parse(saved); } catch (e) {}
+            }
+        }
+        return null;
+    });
     const [selectedHistoryYear, setSelectedHistoryYear] = useState<string>('');
     const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            if (selectedStudentForCard) {
+                localStorage.setItem('admin_selected_student_card', JSON.stringify(selectedStudentForCard));
+            } else {
+                localStorage.removeItem('admin_selected_student_card');
+            }
+        }
+    }, [selectedStudentForCard]);
+
+    useEffect(() => {
+        if (view === 'studentCard' && !selectedStudentForCard) {
+            setView('main');
+        }
+    }, [view, selectedStudentForCard]);
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -2161,7 +2185,20 @@ const Admin: React.FC = () => {
                         onSubjectClick={handleExternalsSubjectClick}
                     />
                 ) : (
-                    <div style={{ color: 'white', textAlign: 'center' }}>კლასი ვერ მოიძებნა</div>
+                    <div style={{ color: 'white', textAlign: 'center', padding: '40px 20px', background: 'rgba(26, 43, 85, 0.75)', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)', maxWidth: '500px', margin: '40px auto' }}>
+                        <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '12px' }}>კლასი ვერ მოიძებნა</h3>
+                        <button
+                            type="button"
+                            className="admin-back-btn"
+                            onClick={() => {
+                                setSelectedClassForExternals(null);
+                                setView('externals');
+                            }}
+                            style={{ margin: '0 auto', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                        >
+                            <ArrowLeftIcon size={18} /> უკან დაბრუნება
+                        </button>
+                    </div>
                 );
             case 'externalsMarkInput':
                 return selectedClassForExternals && selectedSubjectForHistory ? (
@@ -2175,7 +2212,17 @@ const Admin: React.FC = () => {
                         onBackClick={handleBackClick}
                     />
                 ) : (
-                    <div style={{ color: 'white', textAlign: 'center' }}>მონაცემები ვერ მოიძებნა</div>
+                    <div style={{ color: 'white', textAlign: 'center', padding: '40px 20px', background: 'rgba(26, 43, 85, 0.75)', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)', maxWidth: '500px', margin: '40px auto' }}>
+                        <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '12px' }}>მონაცემები ვერ მოიძებნა</h3>
+                        <button
+                            type="button"
+                            className="admin-back-btn"
+                            onClick={() => setView('externals')}
+                            style={{ margin: '0 auto', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                        >
+                            <ArrowLeftIcon size={18} /> უკან დაბრუნება
+                        </button>
+                    </div>
                 );
             case 'reportGeneration':
                 if (showReportGenerator && selectedClassForReport) {
@@ -2216,7 +2263,20 @@ const Admin: React.FC = () => {
                         }}
                     />
                 ) : (
-                    <div style={{ color: 'white', textAlign: 'center' }}>კლასი ვერ მოიძებნა</div>
+                    <div style={{ color: 'white', textAlign: 'center', padding: '40px 20px', background: 'rgba(26, 43, 85, 0.75)', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)', maxWidth: '500px', margin: '40px auto' }}>
+                        <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '12px' }}>კლასი ვერ მოიძებნა</h3>
+                        <button
+                            type="button"
+                            className="admin-back-btn"
+                            onClick={() => {
+                                setSelectedClassForReport(null);
+                                setView('main');
+                            }}
+                            style={{ margin: '0 auto', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                        >
+                            <ArrowLeftIcon size={18} /> მთავარ გვერდზე დაბრუნება
+                        </button>
+                    </div>
                 );
             case 'studentCard':
                 return selectedStudentForCard ? (
@@ -2230,7 +2290,34 @@ const Admin: React.FC = () => {
                         }}
                     />
                 ) : (
-                    <div style={{ color: 'white', textAlign: 'center' }}>მოსწავლე ვერ მოიძებნა</div>
+                    <div style={{ color: 'white', textAlign: 'center', padding: '40px 20px', background: 'rgba(26, 43, 85, 0.75)', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)', maxWidth: '500px', margin: '40px auto' }}>
+                        <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '12px' }}>მოსწავლე ვერ მოიძებნა</h3>
+                        <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', marginBottom: '24px' }}>მოსწავლე არ არის არჩეული ან მონაცემები მიუწვდომელია</p>
+                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                            <button
+                                type="button"
+                                className="admin-back-btn"
+                                onClick={() => {
+                                    setSelectedStudentForCard(null);
+                                    setView('studentList');
+                                }}
+                                style={{ margin: '0', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                            >
+                                <ArrowLeftIcon size={18} /> მოსწავლეთა სია
+                            </button>
+                            <button
+                                type="button"
+                                className="admin-back-btn"
+                                onClick={() => {
+                                    setSelectedStudentForCard(null);
+                                    setView('main');
+                                }}
+                                style={{ margin: '0', display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.15)' }}
+                            >
+                                მთავარ გვერდზე დაბრუნება
+                            </button>
+                        </div>
+                    </div>
                 );
             case 'noticeBoard':
                 const currentAdminName = currentUser ? `${currentUser.name || ''} ${currentUser.surname || ''}`.trim() || 'ადმინისტრატორი' : 'ადმინისტრატორი';
@@ -2288,6 +2375,20 @@ const Admin: React.FC = () => {
             <div className="admin-page-bg-glow" style={{ background: `radial-gradient(circle at center, ${selectedColor}26 0%, transparent 70%)` }} />
 
             <div className="admin-header-actions">
+                {view !== 'main' && (
+                    <button
+                        onClick={() => {
+                            setSelectedStudentForCard(null);
+                            setSelectedClassForReport(null);
+                            setSelectedClassForExternals(null);
+                            setView('main');
+                        }}
+                        className="admin-header-btn"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    >
+                        <ArrowLeftIcon size={16} /> მთავარი
+                    </button>
+                )}
                 <ColorPalette />
                 <button
                     onClick={() => setIsChangePasswordModalOpen(true)}
