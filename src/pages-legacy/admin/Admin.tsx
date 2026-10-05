@@ -41,7 +41,7 @@ import TopStudentsMonitor from '../../components/admin/TopStudentsMonitor';
 import HomeworkModule from '../../components/HomeworkModule';
 
 import { FaShieldAlt, FaAward, FaCheckDouble, FaTasks } from 'react-icons/fa';
-import { clearAuthSession, validateSession } from '@/lib/auth';
+import { clearAuthSession, validateSession, verifyServerAuth } from '@/lib/auth';
 import './Admin.css';
 
 const ArrowLeftIcon = FaArrowLeftLong as React.FC<{ size?: number | string }>;
@@ -88,6 +88,7 @@ const Admin: React.FC = () => {
     const { selectedColor } = useColor();
     const navigate = useNavigate();
     const logoutButtonStyle: React.CSSProperties = {};
+    const [isCheckingAuth, setIsCheckingAuth] = useState(true);
     const [boxWidth, setBoxWidth] = useState(350);
     const [view, setView] = useState(() => {
         if (typeof window !== 'undefined') {
@@ -535,6 +536,23 @@ const Admin: React.FC = () => {
         }
     };
 
+    const fetchTeachers = async () => {
+        try {
+            const res = await fetch('/api/teacher/all');
+            if (res.ok) {
+                const data = await res.json();
+                if (Array.isArray(data)) {
+                    data.sort((a: any, b: any) => `${a.name || ''} ${a.surname || ''}`.localeCompare(`${b.name || ''} ${b.surname || ''}`, 'ka'));
+                }
+                setTeachers(data);
+            } else {
+                showPopup('მასწავლებლების სიის ჩატვირთვა ვერ მოხერხდა.', 'error');
+            }
+        } catch (err) {
+            showPopup('მასწავლებლების სიის ჩატვირთვისას მოხდა შეცდომა.', 'error');
+        }
+    };
+
     useEffect(() => {
         fetchAllClasses();
         fetchAllSubjects();
@@ -628,19 +646,41 @@ const Admin: React.FC = () => {
     ];
 
     useEffect(() => {
-        try {
-            if (!validateSession('admin')) {
+        const checkAuth = async () => {
+            const isAuthorized = await verifyServerAuth('admin');
+            if (!isAuthorized) {
                 clearAuthSession();
                 navigate('/', { replace: true });
                 return;
             }
-            const loginData = JSON.parse(localStorage.getItem('login') || '{}');
-            setCurrentUser(loginData);
-        } catch {
-            clearAuthSession();
-            navigate('/', { replace: true });
-        }
+            try {
+                const loginData = JSON.parse(localStorage.getItem('login') || '{}');
+                setCurrentUser(loginData);
+                setIsCheckingAuth(false);
+            } catch {
+                clearAuthSession();
+                navigate('/', { replace: true });
+            }
+        };
+        checkAuth();
     }, [navigate]);
+
+    if (isCheckingAuth) {
+        return (
+            <div style={{
+                minHeight: '100vh',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#0f172a',
+                color: '#ffffff',
+                fontSize: '18px',
+                fontWeight: 600
+            }}>
+                იტვირთება...
+            </div>
+        );
+    }
 
     const fetchAdmins = async () => {
         try {
@@ -1050,22 +1090,7 @@ const Admin: React.FC = () => {
         }
     };
 
-    const fetchTeachers = async () => {
-        try {
-            const res = await fetch('/api/teacher/all');
-            if (res.ok) {
-                const data = await res.json();
-                if (Array.isArray(data)) {
-                    data.sort((a: any, b: any) => `${a.name || ''} ${a.surname || ''}`.localeCompare(`${b.name || ''} ${b.surname || ''}`, 'ka'));
-                }
-                setTeachers(data);
-            } else {
-                showPopup('მასწავლებლების სიის ჩატვირთვა ვერ მოხერხდა.', 'error');
-            }
-        } catch (err) {
-            showPopup('მასწავლებლების სიის ჩატვირთვისას მოხდა შეცდომა.', 'error');
-        }
-    };
+
 
     const handleAddStudent = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();

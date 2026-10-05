@@ -68,3 +68,41 @@ export function validateSession(requiredRole?: string): boolean {
     return false;
   }
 }
+
+/**
+ * Asynchronously verifies authentication and role directly with the backend.
+ * Clears localStorage session and returns false if backend authentication fails.
+ */
+export async function verifyServerAuth(requiredRole?: string): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  try {
+    const res = await fetch('/api/auth/me');
+    if (!res.ok) {
+      clearAuthSession();
+      return false;
+    }
+    const data = await res.json();
+    if (!data.authenticated) {
+      clearAuthSession();
+      return false;
+    }
+
+    if (requiredRole) {
+      const role = data.role;
+      if (requiredRole === 'admin') {
+        if (role !== 'admin' && role !== 'superadmin' && role !== 'resource_center') {
+          clearAuthSession();
+          return false;
+        }
+      } else if (role !== requiredRole && role !== 'superadmin') {
+        clearAuthSession();
+        return false;
+      }
+    }
+
+    return true;
+  } catch (e) {
+    clearAuthSession();
+    return false;
+  }
+}

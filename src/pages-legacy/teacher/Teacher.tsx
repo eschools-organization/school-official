@@ -17,7 +17,7 @@ import ColorPalette from "./../../components/ColorPalette";
 import { useNavigate, Routes, Route, useParams, useSearchParams } from "react-router-dom"; // For navigation after logout and useParams
 import InfoModal from "../../components/InfoModal";
 import DetailedGradeHistory from "../../components/admin/DetailedGradeHistory";
-import { clearAuthSession, validateSession } from "@/lib/auth";
+import { clearAuthSession, validateSession, verifyServerAuth } from "@/lib/auth";
 import "../admin/Admin.css";
 
 const FaChalkboardTeacherIcon = FaChalkboardTeacher as React.ComponentType<{
@@ -377,6 +377,7 @@ const Teacher: React.FC = () => {
   );
   const [historyClassId, setHistoryClassId] = useState<string | null>(null);
   const [pointType, setPointType] = useState(2); // Default to "აღრიცხვა" (2)
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editGrade, setEditGrade] = useState<any>(null); // grade object
   const [editPoint, setEditPoint] = useState("");
@@ -588,16 +589,34 @@ const Teacher: React.FC = () => {
 
 
   useEffect(() => {
-    try {
-      if (!validateSession('teacher')) {
+    const checkAuth = async () => {
+      const isAuthorized = await verifyServerAuth('teacher');
+      if (!isAuthorized) {
         clearAuthSession();
         navigate('/', { replace: true });
+        return;
       }
-    } catch {
-      clearAuthSession();
-      navigate('/', { replace: true });
-    }
+      setIsCheckingAuth(false);
+    };
+    checkAuth();
   }, [navigate]);
+
+  if (isCheckingAuth) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#0f172a',
+        color: '#ffffff',
+        fontSize: '18px',
+        fontWeight: 600
+      }}>
+        იტვირთება...
+      </div>
+    );
+  }
 
   const handleLogout = () => {
     clearAuthSession();

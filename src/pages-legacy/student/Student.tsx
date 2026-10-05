@@ -18,7 +18,7 @@ import {
   FaTasks,
   FaUserGraduate
 } from 'react-icons/fa';
-import { clearAuthSession, validateSession } from '@/lib/auth';
+import { clearAuthSession, validateSession, verifyServerAuth } from '@/lib/auth';
 import '../admin/Admin.css';
 
 const FaSignOutAltIcon = FaSignOutAlt as React.ComponentType<any>;
@@ -55,6 +55,7 @@ const Student: React.FC = () => {
     const navigate = useNavigate();
     const { selectedColor } = useColor();
     const [{ studentId, classId }] = useState(readStudentSession);
+    const [isCheckingAuth, setIsCheckingAuth] = useState(true);
     const [activeTab, setActiveTab] = useState<'grades' | 'timeline' | 'homework' | 'notices' | 'messages'>('grades');
 
 
@@ -126,16 +127,34 @@ const Student: React.FC = () => {
     const studentFullName = studentInfo ? `${studentInfo.name} ${studentInfo.surname}` : 'მოსწავლე';
 
     useEffect(() => {
-        try {
-            if (!validateSession('student')) {
+        const checkAuth = async () => {
+            const isAuthorized = await verifyServerAuth('student');
+            if (!isAuthorized) {
                 clearAuthSession();
                 navigate('/', { replace: true });
+                return;
             }
-        } catch {
-            clearAuthSession();
-            navigate('/', { replace: true });
-        }
+            setIsCheckingAuth(false);
+        };
+        checkAuth();
     }, [navigate]);
+
+    if (isCheckingAuth) {
+        return (
+            <div style={{
+                minHeight: '100vh',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#0f172a',
+                color: '#ffffff',
+                fontSize: '18px',
+                fontWeight: 600
+            }}>
+                იტვირთება...
+            </div>
+        );
+    }
 
     const handleLogout = () => {
         clearAuthSession();
