@@ -1,0 +1,24 @@
+# Apache Configuration for Next.js App running on PM2 (Port 3000)
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Pass Authorization and Cookie headers to Node.js
+  SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+  # Forward HTTPS status to Node.js
+  SetEnvIf X-Forwarded-Proto "^https$" HTTPS=on
+
+  # Do not proxy existing static files
+  RewriteCond %{REQUEST_FILENAME} -f
+  RewriteRule ^ - [L]
+
+  # Proxy all other requests to Next.js on port 3000
+  RewriteRule ^(.*)$ http://127.0.0.1:3000/$1 [P,L]
+</IfModule>
+
+<IfModule mod_proxy.c>
+  ProxyPreserveHost On
+  ProxyPass / http://127.0.0.1:3000/
+  ProxyPassReverse / http://127.0.0.1:3000/
+</IfModule>

@@ -632,7 +632,7 @@ const Teacher: React.FC = () => {
   }
 
   // Get user role from localStorage
-  const loginData = JSON.parse(localStorage.getItem("login") || "{}");
+  const loginData = JSON.parse(typeof window !== 'undefined' ? localStorage.getItem("login") || "{}" : "{}");
   const isTeacher = loginData.role === "teacher";
 
   // Helper: Days and lessons
