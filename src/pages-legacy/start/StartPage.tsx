@@ -77,6 +77,9 @@ const StartPage: React.FC = () => {
                 clearAuthSession();
                 const activeRole = data.role || role;
                 localStorage.setItem('login', JSON.stringify({ role: activeRole, user_ID, loginTime: Date.now() }));
+                if (data.token) {
+                    localStorage.setItem('authToken', data.token);
+                }
                 
                 if (role === 'student' && data.user_ID && data.class_id) {
                     localStorage.setItem('studentId', data.user_ID);

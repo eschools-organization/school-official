@@ -12,6 +12,26 @@ const Admin = lazy(() => import("@/pages-legacy/admin/Admin"));
 const Teacher = lazy(() => import("@/pages-legacy/teacher/Teacher"));
 
 export default function ClientApp() {
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const originalFetch = window.fetch;
+    window.fetch = async function (input: RequestInfo | URL, init?: RequestInit) {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes('/api/')) {
+        const token = localStorage.getItem('authToken');
+        if (token) {
+          init = init || {};
+          const headers = new Headers(init.headers || {});
+          if (!headers.has('Authorization')) {
+            headers.set('Authorization', `Bearer ${token}`);
+          }
+          init.headers = headers;
+        }
+      }
+      return originalFetch(input, init);
+    };
+  }, []);
+
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
       queries: {

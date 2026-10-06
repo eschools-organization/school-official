@@ -27,7 +27,12 @@ export function checkResponseAuth(res: Response): boolean {
   if (res.status === 401 || res.status === 403) {
     clearAuthSession();
     if (typeof window !== 'undefined' && window.location.pathname !== '/') {
-      window.location.href = '/';
+      const now = Date.now();
+      const lastRedirect = parseInt(sessionStorage.getItem('last_auth_redirect') || '0', 10);
+      if (now - lastRedirect > 3000) {
+        sessionStorage.setItem('last_auth_redirect', now.toString());
+        window.location.href = '/';
+      }
     }
     return false;
   }
@@ -91,7 +96,12 @@ export function validateSession(requiredRole?: string): boolean {
 export async function verifyServerAuth(requiredRole?: string): Promise<boolean> {
   if (typeof window === 'undefined') return false;
   try {
-    const res = await fetch('/api/auth/me');
+    const token = localStorage.getItem('authToken');
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    const res = await fetch('/api/auth/me', { headers });
     if (!res.ok) {
       clearAuthSession();
       return false;
