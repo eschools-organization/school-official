@@ -41,7 +41,7 @@ import TopStudentsMonitor from '../../components/admin/TopStudentsMonitor';
 import HomeworkModule from '../../components/HomeworkModule';
 
 import { FaShieldAlt, FaAward, FaCheckDouble, FaTasks } from 'react-icons/fa';
-import { clearAuthSession, validateSession, verifyServerAuth } from '@/lib/auth';
+import { checkResponseAuth, clearAuthSession, validateSession, verifyServerAuth } from '@/lib/auth';
 import './Admin.css';
 
 const ArrowLeftIcon = FaArrowLeftLong as React.FC<{ size?: number | string }>;
@@ -234,6 +234,7 @@ const Admin: React.FC = () => {
     const fetchAllSubjects = async () => {
         try {
             const res = await fetch('/api/subjects');
+            if (!checkResponseAuth(res)) return;
             if (res.ok) {
                 const data = await res.json();
                 if (Array.isArray(data)) {
@@ -251,6 +252,7 @@ const Admin: React.FC = () => {
     const fetchAllClasses = async () => {
         try {
             const res = await fetch('/api/classes');
+            if (!checkResponseAuth(res)) return;
             if (res.ok) {
                 const data = await res.json();
                 setClasses(data);
@@ -539,6 +541,7 @@ const Admin: React.FC = () => {
     const fetchTeachers = async () => {
         try {
             const res = await fetch('/api/teacher/all');
+            if (!checkResponseAuth(res)) return;
             if (res.ok) {
                 const data = await res.json();
                 if (Array.isArray(data)) {

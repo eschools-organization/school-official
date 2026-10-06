@@ -20,6 +20,21 @@ export function clearAuthSession() {
 }
 
 /**
+ * Checks if an API response is 401 Unauthorized or 403 Forbidden.
+ * If so, clears session and immediately redirects to login page.
+ */
+export function checkResponseAuth(res: Response): boolean {
+  if (res.status === 401 || res.status === 403) {
+    clearAuthSession();
+    if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+      window.location.href = '/';
+    }
+    return false;
+  }
+  return true;
+}
+
+/**
  * Validates if the current stored session in localStorage is valid and complete.
  * @param requiredRole Optional role to check against ('student' | 'teacher' | 'admin' | 'superadmin' | 'resource_center')
  */
