@@ -420,6 +420,17 @@ const Teacher: React.FC = () => {
     refetchInterval: 8000
   });
 
+  // Fetch global calendar events for today's lesson view
+  const { data: globalCalendarEvents } = useQuery<any[]>({
+    queryKey: ['calendar-events-teacher-main'],
+    queryFn: async () => {
+      const res = await fetch('/api/calendar-events');
+      if (!res.ok) return [];
+      return res.json();
+    },
+    refetchInterval: 10000
+  });
+
   const hasUnreadTeacherMessages = React.useMemo(() => {
     if (!teacherMessages || !Array.isArray(teacherMessages)) return false;
     const incomingCount = teacherMessages.filter((m: any) => m.sender_id !== teacherIdForChat).length;
@@ -452,74 +463,84 @@ const Teacher: React.FC = () => {
 
   useEffect(() => {
     const fetchClasses = async () => {
-      // Get teacher user_ID from localStorage
-      const loginData = JSON.parse(localStorage.getItem("login") || "{}");
-      const user_ID = loginData.user_ID;
-      if (!user_ID) return;
-      // Fetch all classes
-      const res = await fetch("/api/classes");
-      if (!res.ok) return;
-      const allClasses = await res.json();
-      // Fetch all teachers to get _id for this user_ID and for subject display
-      const tRes = await fetch("/api/teacher/all");
-      if (!tRes.ok) return;
-      const teachers = await tRes.json();
-      if (Array.isArray(teachers)) {
-        teachers.sort((a: any, b: any) => `${a.name || ''} ${a.surname || ''}`.localeCompare(`${b.name || ''} ${b.surname || ''}`, 'ka'));
-      }
-      setAllTeachers(teachers);
-      const teacher = teachers.find((t: any) => t.user_ID === user_ID);
-      if (!teacher) return;
-      const teacherId = teacher._id;
-      // Fetch all subjects for subject names
-      const subjRes = await fetch("/api/subjects");
-      if (!subjRes.ok) return;
-      const subjects = await subjRes.json();
-      if (Array.isArray(subjects)) {
-        subjects.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '', 'ka'));
-      }
-      setAllSubjects(subjects);
-      // Tutor classes
-      const tutor = allClasses.filter((cls: any) => isSameId(cls.damrigebeli, teacherId));
-      // Teaches classes (any subject with hours_per_week > 0)
-      const teaches = allClasses
-        .filter(
-          (cls: any) =>
-            Array.isArray(cls.subjects) &&
-            cls.subjects.some((subj: any) => 
-              isSameId(subj.teacher_id, teacherId) && 
-              (subj.hours_per_week === undefined || subj.hours_per_week > 0)
-            ),
-        )
-        .map((cls: any) => {
-          // Find subjects this teacher teaches in this class
-          const teacherSubjects = (cls.subjects || [])
-            .filter((subj: any) => 
-              isSameId(subj.teacher_id, teacherId) && 
-              (subj.hours_per_week === undefined || subj.hours_per_week > 0)
+      try {
+        if (typeof window === 'undefined') return;
+        const loginData = JSON.parse(localStorage.getItem("login") || "{}");
+        const user_ID = loginData.user_ID;
+        if (!user_ID) return;
+
+        const res = await fetch("/api/classes");
+        if (!res.ok) return;
+        const allClasses = await res.json();
+
+        const tRes = await fetch("/api/teacher/all");
+        if (!tRes.ok) return;
+        const teachers = await tRes.json();
+        if (Array.isArray(teachers)) {
+          teachers.sort((a: any, b: any) => `${a.name || ''} ${a.surname || ''}`.localeCompare(`${b.name || ''} ${b.surname || ''}`, 'ka'));
+        }
+        setAllTeachers(teachers);
+
+        const teacher = teachers.find((t: any) => 
+          isSameId(t.user_ID, user_ID) || 
+          isSameId(t.ID, user_ID) || 
+          isSameId(t._id, user_ID)
+        );
+        const teacherId = teacher ? teacher._id : "";
+
+        const subjRes = await fetch("/api/subjects");
+        if (!subjRes.ok) return;
+        const subjects = await subjRes.json();
+        if (Array.isArray(subjects)) {
+          subjects.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '', 'ka'));
+        }
+        setAllSubjects(subjects);
+
+        if (teacherId) {
+          const tutor = allClasses.filter((cls: any) => isSameId(cls.damrigebeli, teacherId));
+          const teaches = allClasses
+            .filter(
+              (cls: any) =>
+                Array.isArray(cls.subjects) &&
+                cls.subjects.some((subj: any) => 
+                  isSameId(subj.teacher_id, teacherId) && 
+                  (subj.hours_per_week === undefined || subj.hours_per_week > 0)
+                ),
             )
-            .map((subj: any) => {
-              const subjObj = subjects.find(
-                (s: any) => isSameId(s._id, subj.subject_id),
-              );
-              return subjObj ? subjObj.name : "";
+            .map((cls: any) => {
+              const teacherSubjects = (cls.subjects || [])
+                .filter((subj: any) => 
+                  isSameId(subj.teacher_id, teacherId) && 
+                  (subj.hours_per_week === undefined || subj.hours_per_week > 0)
+                )
+                .map((subj: any) => {
+                  const subjObj = subjects.find(
+                    (s: any) => isSameId(s._id, subj.subject_id),
+                  );
+                  return subjObj ? subjObj.name : "";
+                })
+                .filter((name: string) => !!name);
+              return { ...cls, teacherSubjects };
             })
-            .filter((name: string) => !!name);
-          return { ...cls, teacherSubjects };
-        })
-        .filter((cls: any) => cls.teacherSubjects && cls.teacherSubjects.length > 0);
-      setTutorClasses(tutor);
-      setTeachesClasses(teaches);
-      // Fetch teacher schedule
-      setScheduleLoading(true);
-      const scheduleRes = await fetch(
-        `/api/teacher/schedule?user_ID=${encodeURIComponent(user_ID)}&teacher_id=${encodeURIComponent(teacherId || "")}`,
-      );
-      if (scheduleRes.ok) {
-        const sched = await scheduleRes.json();
-        setTeacherSchedule(sched);
+            .filter((cls: any) => cls.teacherSubjects && cls.teacherSubjects.length > 0);
+
+          setTutorClasses(tutor);
+          setTeachesClasses(teaches);
+        }
+
+        setScheduleLoading(true);
+        const scheduleRes = await fetch(
+          `/api/teacher/schedule?user_ID=${encodeURIComponent(user_ID)}&teacher_id=${encodeURIComponent(teacherId || "")}`,
+        );
+        if (scheduleRes.ok) {
+          const sched = await scheduleRes.json();
+          setTeacherSchedule(sched);
+        }
+      } catch (err) {
+        console.error("Error in fetchClasses:", err);
+      } finally {
+        setScheduleLoading(false);
       }
-      setScheduleLoading(false);
     };
     fetchClasses();
   }, []);
@@ -2387,16 +2408,6 @@ const Teacher: React.FC = () => {
       </div>
     );
   };
-
-  const { data: globalCalendarEvents } = useQuery<any[]>({
-    queryKey: ['calendar-events-teacher-main'],
-    queryFn: async () => {
-      const res = await fetch('/api/calendar-events');
-      if (!res.ok) return [];
-      return res.json();
-    },
-    refetchInterval: 10000
-  });
 
   const getTodayInfo = () => {
     const now = new Date();
