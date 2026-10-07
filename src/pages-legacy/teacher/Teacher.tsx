@@ -47,6 +47,16 @@ const isSameId = (a: any, b: any): boolean => {
   return extractIdStr(a) === extractIdStr(b);
 };
 
+const getClassGradeNumber = (classname?: string): number => {
+  if (!classname) return 0;
+  const romanMap: { [k: string]: number } = { 'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5, 'VI': 6, 'VII': 7, 'VIII': 8, 'IX': 9, 'X': 10, 'XI': 11, 'XII': 12 };
+  const romanMatch = classname.match(/^(XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)/i);
+  if (romanMatch) return romanMap[romanMatch[1].toUpperCase()] || 0;
+  const numMatch = classname.match(/^(\d+)/);
+  if (numMatch) return parseInt(numMatch[1], 10);
+  return 0;
+};
+
 const TutorClassDetails: React.FC<{
   allSubjects: any[];
   allTeachers: any[];
@@ -1449,6 +1459,15 @@ const Teacher: React.FC = () => {
         },
       }));
     };
+    const handleGradeCommentChange = (studentId: string, commentVal: string) => {
+      setGrades((prev) => ({
+        ...prev,
+        [studentId]: {
+          ...prev[studentId],
+          comment: commentVal,
+        },
+      }));
+    };
 
     // Memoize the student list to prevent unnecessary re-renders
     const memoizedStudents = React.useMemo(() => students, [students]);
@@ -1615,7 +1634,7 @@ const Teacher: React.FC = () => {
     const activeSubjectName = allSubjects.find((s: any) => s._id === selectedSubject)?.name || urlSubjectName;
 
     return renderTeacherLayout(
-        <div className="admin-view-container" style={{ width: '100%', maxWidth: '900px', margin: '0 auto' }}>
+        <div className="admin-view-container" style={{ width: '100%', maxWidth: '1100px', margin: '0 auto' }}>
           <button
             type="button"
             onClick={handleBack}
@@ -1821,7 +1840,7 @@ const Teacher: React.FC = () => {
                 color: '#b45309',
                 padding: '10px 18px',
                 borderRadius: '14px',
-                margin: '16px 24px 0',
+                margin: '16px 24px 16px',
                 fontSize: '13px',
                 fontWeight: 700,
                 display: 'flex',
@@ -1851,10 +1870,11 @@ const Teacher: React.FC = () => {
 
             {(() => {
               const classObj = teachesClasses.find((cls: any) => cls._id === id);
-              const classGradeNum = parseInt(classObj?.classname || "", 10);
+              const classGradeNum = getClassGradeNumber(classObj?.classname);
               const isFirstSemester = month >= 8 && month <= 11; // Sept (8) to Dec (11)
               const isCommentOnly = (!isNaN(classGradeNum) && classGradeNum >= 1 && classGradeNum <= 4) ||
                                    (!isNaN(classGradeNum) && classGradeNum === 5 && isFirstSemester);
+              const is7to12 = classGradeNum >= 7 && classGradeNum <= 12;
               const selectedSubjObj = allSubjects.find((s: any) => s._id === selectedSubject);
               const isProjectSubject = isProjectToggle || 
                                        selectedSubjObj?.is_project || 
@@ -1864,10 +1884,10 @@ const Teacher: React.FC = () => {
               return (
                 <>
                   <div className="grade-entry-header">
-                    <div>მოსწავლე</div>
-                    <div style={{ textAlign: 'center' }}>დასწრება</div>
-                    <div style={{ textAlign: 'center' }}>
-                      {isCommentOnly ? "განმავითარებელი კომენტარი" : isProjectSubject ? "ჩათვლა (ჩთ / არ ჩთ)" : "ქულა (0-10)"}
+                    <div className="grade-entry-header-student">მოსწავლე</div>
+                    <div className="grade-entry-header-attendance">დასწრება</div>
+                    <div className="grade-entry-header-point">
+                      {isCommentOnly ? "განმავითარებელი კომენტარი" : isProjectSubject ? (is7to12 ? "ჩათვლა (ჩთ / არ ჩთ) და კომენტარი" : "ჩათვლა (ჩთ / არ ჩთ)") : (is7to12 ? "ქულა (0-10) და კომენტარი" : "ქულა (0-10)")}
                     </div>
                   </div>
 
@@ -1927,7 +1947,6 @@ const Teacher: React.FC = () => {
                                     fontSize: '13px',
                                     opacity: checked ? 1 : 0.5,
                                     width: '100%',
-                                    maxWidth: '280px',
                                     background: '#ffffff',
                                     border: '1.5px solid #cbd5e1',
                                     color: '#0f172a',
@@ -1936,31 +1955,59 @@ const Teacher: React.FC = () => {
                                     boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)'
                                   }}
                                 />
-                              ) : isProjectSubject ? (
-                                <select
-                                  value={grades[student._id]?.point ?? ''}
-                                  onChange={(e) => handlePointChange(student._id, e.target.value)}
-                                  disabled={!checked}
-                                  className="admin-select"
-                                  style={{ padding: '8px 12px', fontSize: '14px', opacity: checked ? 1 : 0.5, width: '100%' }}
-                                >
-                                  <option value="">აირჩიეთ...</option>
-                                  <option value="ჩთ">ჩთ (ჩათვლილი)</option>
-                                  <option value="არ ჩთ">არ ჩთ (არაჩათვლილი)</option>
-                                </select>
                               ) : (
-                                <select
-                                  value={grades[student._id]?.point ?? ''}
-                                  onChange={(e) => handlePointChange(student._id, e.target.value)}
-                                  disabled={!checked}
-                                  className="admin-select"
-                                  style={{ padding: '8px 12px', fontSize: '14px', opacity: checked ? 1 : 0.5, width: '100%' }}
-                                >
-                                  <option value="">ნიშნის გარეშე</option>
-                                  {Array.from({ length: 11 }, (_, n) => n).map((n) => (
-                                    <option key={n} value={n}>{n}</option>
-                                  ))}
-                                </select>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%' }}>
+                                  {isProjectSubject ? (
+                                    <select
+                                      value={grades[student._id]?.point ?? ''}
+                                      onChange={(e) => handlePointChange(student._id, e.target.value)}
+                                      disabled={!checked}
+                                      className="admin-select"
+                                      style={{ padding: '8px 12px', fontSize: '14px', opacity: checked ? 1 : 0.5, width: is7to12 ? '130px' : '100%', flexShrink: 0 }}
+                                    >
+                                      <option value="">აირჩიეთ...</option>
+                                      <option value="ჩთ">ჩთ (ჩათვლილი)</option>
+                                      <option value="არ ჩთ">არ ჩთ (არაჩათვლილი)</option>
+                                    </select>
+                                  ) : (
+                                    <select
+                                      value={grades[student._id]?.point ?? ''}
+                                      onChange={(e) => handlePointChange(student._id, e.target.value)}
+                                      disabled={!checked}
+                                      className="admin-select"
+                                      style={{ padding: '8px 12px', fontSize: '14px', opacity: checked ? 1 : 0.5, width: is7to12 ? '130px' : '100%', flexShrink: 0 }}
+                                    >
+                                      <option value="">ნიშნის გარეშე</option>
+                                      {Array.from({ length: 11 }, (_, n) => n).map((n) => (
+                                        <option key={n} value={n}>{n}</option>
+                                      ))}
+                                    </select>
+                                  )}
+
+                                  {is7to12 && (
+                                    <input
+                                      type="text"
+                                      value={grades[student._id]?.comment ?? ''}
+                                      onChange={(e) => handleGradeCommentChange(student._id, e.target.value)}
+                                      placeholder="კომენტარი..."
+                                      disabled={!checked}
+                                      className="admin-input"
+                                      style={{
+                                        padding: '8px 12px',
+                                        fontSize: '13px',
+                                        opacity: checked ? 1 : 0.5,
+                                        flex: 1,
+                                        minWidth: '130px',
+                                        background: '#ffffff',
+                                        border: '1.5px solid #cbd5e1',
+                                        color: '#0f172a',
+                                        fontWeight: 500,
+                                        borderRadius: '8px',
+                                        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)'
+                                      }}
+                                    />
+                                  )}
+                                </div>
                               )}
                             </div>
                           </div>

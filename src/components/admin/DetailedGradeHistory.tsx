@@ -214,9 +214,16 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
     const [isAttending, setIsAttending] = useState<boolean>(true);
     const [editPoint, setEditPoint] = useState<string>('10');
     const [editPointType, setEditPointType] = useState<number>(1);
+    const [editComment, setEditComment] = useState<string>('');
     const [editSubjectId, setEditSubjectId] = useState<string>('');
     const [savingGrade, setSavingGrade] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+    const [commentModalGrade, setCommentModalGrade] = useState<{
+        grade: Grade;
+        studentName: string;
+        subjectName?: string;
+    } | null>(null);
 
     const [subjectModalOpen, setSubjectModalOpen] = useState(false);
     const [editSubjectTarget, setEditSubjectTarget] = useState<Subject | null>(null);
@@ -600,6 +607,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
         const subjId = grade?.subject_id || defaultSubj;
         setEditSubjectId(subjId);
         setEditPointType(grade?.pointType || 1);
+        setEditComment(grade?.comment || '');
 
         if (!grade) {
             setIsAttending(true);
@@ -656,6 +664,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                 date: selectedCell.date,
                 point: pointVal,
                 pointType: editPointType,
+                comment: editComment,
                 checked: checkedVal,
                 lesson_num: selectedCell.lessonNum || selectedCell.targetGrade?.lesson_num || 1,
                 isAdmin: Boolean(isAdmin)
@@ -1348,7 +1357,34 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                                                     </div>
 
                                                                     {primaryGrade?.comment && (
-                                                                        <div style={{ fontSize: '11px', color: '#0f172a', fontWeight: 600, background: 'rgba(255,255,255,0.6)', padding: '2px 6px', borderRadius: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                        <div
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setCommentModalGrade({
+                                                                                    grade: primaryGrade,
+                                                                                    studentName: `${student.surname || ''} ${student.name || ''}`,
+                                                                                    subjectName: subjects.find(s => s._id === (primaryGrade.subject_id || selectedSubject))?.name || subjectName
+                                                                                });
+                                                                            }}
+                                                                            title="კომენტარის ნახვა (Popup)"
+                                                                            style={{
+                                                                                fontSize: '11px',
+                                                                                color: '#0f172a',
+                                                                                fontWeight: 600,
+                                                                                background: 'rgba(255,255,255,0.85)',
+                                                                                border: '1px solid #cbd5e1',
+                                                                                padding: '3px 8px',
+                                                                                borderRadius: '8px',
+                                                                                overflow: 'hidden',
+                                                                                textOverflow: 'ellipsis',
+                                                                                whiteSpace: 'nowrap',
+                                                                                cursor: 'pointer',
+                                                                                display: 'inline-flex',
+                                                                                alignItems: 'center',
+                                                                                gap: '4px',
+                                                                                marginTop: '4px'
+                                                                            }}
+                                                                        >
                                                                             💬 {primaryGrade.comment}
                                                                         </div>
                                                                     )}
@@ -1524,7 +1560,22 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                                                         }}
                                                                     >
                                                                         {isAbsent ? 'X' : displayVal}
-                                                                        {hasComment && !isAbsent && <span style={{ fontSize: '10px', marginLeft: '1px' }}>💬</span>}
+                                                                        {hasComment && !isAbsent && (
+                                                                            <span
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setCommentModalGrade({
+                                                                                        grade: g,
+                                                                                        studentName: `${student.surname || ''} ${student.name || ''}`,
+                                                                                        subjectName: subjects.find(s => s._id === (g.subject_id || selectedSubject))?.name || subjectName
+                                                                                    });
+                                                                                }}
+                                                                                title="კომენტარის ნახვა (Popup)"
+                                                                                style={{ fontSize: '12px', marginLeft: '2px', cursor: 'pointer' }}
+                                                                            >
+                                                                                💬
+                                                                            </span>
+                                                                        )}
                                                                     </span>
                                                                 );
                                                             })}
@@ -1882,6 +1933,30 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                     </select>
                                 </div>
 
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '8px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                        კომენტარი:
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={editComment}
+                                        disabled={!canUserEditDate}
+                                        onChange={(e) => setEditComment(e.target.value)}
+                                        placeholder="დაწერეთ კომენტარი..."
+                                        style={{
+                                            width: '100%',
+                                            padding: '10px 14px',
+                                            borderRadius: '10px',
+                                            border: '1px solid #cbd5e1',
+                                            background: '#ffffff',
+                                            color: '#0f172a',
+                                            fontSize: '14px',
+                                            fontWeight: 500,
+                                            opacity: canUserEditDate ? 1 : 0.6
+                                        }}
+                                    />
+                                </div>
+
                                 <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                                     <button
                                         type="button"
@@ -2085,6 +2160,112 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                 </button>
                             </div>
                         </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* Modal Popup for Grade Comment in History */}
+            {commentModalGrade && typeof window !== 'undefined' && createPortal(
+                <div
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        width: '100vw',
+                        height: '100vh',
+                        background: 'rgba(15, 23, 42, 0.65)',
+                        backdropFilter: 'blur(8px)',
+                        zIndex: 999999,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '20px'
+                    }}
+                    onClick={() => setCommentModalGrade(null)}
+                >
+                    <div
+                        style={{
+                            background: '#ffffff',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '24px',
+                            padding: '28px',
+                            maxWidth: '460px',
+                            width: '100%',
+                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '16px'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{ background: '#fef3c7', color: '#d97706', padding: '8px 12px', borderRadius: '12px', fontSize: '18px' }}>
+                                    💬
+                                </div>
+                                <div>
+                                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                                        ნიშნის კომენტარი
+                                    </h3>
+                                    <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
+                                        {commentModalGrade.studentName}
+                                    </span>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setCommentModalGrade(null)}
+                                style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontWeight: 800, color: '#64748b' }}
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', color: '#475569' }}>
+                            {commentModalGrade.subjectName && (
+                                <div><strong>საგანი:</strong> {commentModalGrade.subjectName}</div>
+                            )}
+                            <div><strong>თარიღი:</strong> {commentModalGrade.grade.date} {commentModalGrade.grade.time ? `(${commentModalGrade.grade.time.slice(0, 5)})` : ''}</div>
+                            <div>
+                                <strong>ნიშანი:</strong>{' '}
+                                <span style={{ fontWeight: 800, color: '#2563eb' }}>
+                                    {getSingleGradeDisplay(commentModalGrade.grade)}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div style={{
+                            background: '#fffbeb',
+                            border: '1.5px solid #fde68a',
+                            borderRadius: '16px',
+                            padding: '16px',
+                            color: '#92400e',
+                            fontSize: '14px',
+                            lineHeight: 1.6,
+                            fontWeight: 600,
+                            wordBreak: 'break-word'
+                        }}>
+                            {commentModalGrade.grade.comment}
+                        </div>
+
+                        <button
+                            onClick={() => setCommentModalGrade(null)}
+                            style={{
+                                width: '100%',
+                                padding: '12px 16px',
+                                borderRadius: '12px',
+                                background: '#2563eb',
+                                color: '#ffffff',
+                                border: 'none',
+                                fontWeight: 700,
+                                fontSize: '14px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            დახურვა
+                        </button>
                     </div>
                 </div>,
                 document.body

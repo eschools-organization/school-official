@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { IoArrowBack, IoSearch } from 'react-icons/io5';
-import { FaTrashAlt, FaEdit } from 'react-icons/fa';
+import { FaTrashAlt, FaEdit, FaSignInAlt } from 'react-icons/fa';
 import { MdRestorePage } from 'react-icons/md';
 
 const ArrowLeftIcon = IoArrowBack as React.FC<{ size?: number | string }>;
@@ -8,6 +8,7 @@ const SearchIcon = IoSearch as React.FC<{ size?: number | string; style?: React.
 const TrashIcon = FaTrashAlt as React.FC;
 const EditIcon = FaEdit as React.FC;
 const RestoreIcon = MdRestorePage as React.FC;
+const LoginIcon = FaSignInAlt as React.FC;
 
 interface Teacher {
     _id: string;
@@ -25,6 +26,7 @@ interface TeacherListProps {
     onDeleteTeacher: (teacherId: string) => void;
     onEditTeacher: (teacher: Teacher) => void;
     onResetPassword: (teacherId: string) => void;
+    onLoginAsTeacher?: (teacher: Teacher) => void;
 }
 
 const TeacherList: React.FC<TeacherListProps> = ({
@@ -34,10 +36,17 @@ const TeacherList: React.FC<TeacherListProps> = ({
     onDeleteTeacher,
     onEditTeacher,
     onResetPassword,
+    onLoginAsTeacher,
 }) => {
     const [searchQuery, setSearchQuery] = useState('');
 
     const filteredTeachers = teachers.filter((teacher) => {
+        const idStr = String(teacher.ID || teacher.user_ID || teacher._id || '').trim();
+        const nameStr = String(teacher.name || '').trim();
+        const surnameStr = String(teacher.surname || '').trim();
+        if (['12', '14', '15'].includes(idStr) || ['12', '14', '15'].includes(nameStr) || ['12', '14', '15'].includes(surnameStr)) return false;
+        if (/^(12|14|15)$/i.test(idStr) || /^(12|14|15)$/i.test(nameStr) || /^(12|14|15)$/i.test(surnameStr)) return false;
+
         const query = searchQuery.toLowerCase().trim();
         if (!query) return true;
         const name = (teacher.name || '').toLowerCase();
@@ -104,6 +113,15 @@ const TeacherList: React.FC<TeacherListProps> = ({
                                 <td>{teacher.ID || teacher.user_ID}</td>
                                 <td>
                                     <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                                        {onLoginAsTeacher && (
+                                            <button 
+                                                className="admin-action-btn login" 
+                                                onClick={() => onLoginAsTeacher(teacher)} 
+                                                title="მასწავლებლის ანგარიშით შესვლა"
+                                            >
+                                                <LoginIcon />
+                                            </button>
+                                        )}
                                         <button 
                                             className="admin-action-btn edit" 
                                             onClick={() => onEditTeacher(teacher)} 

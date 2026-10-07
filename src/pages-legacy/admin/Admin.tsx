@@ -890,6 +890,39 @@ const Admin: React.FC = () => {
         });
     };
 
+    const handleLoginAsTeacher = async (teacher: Teacher) => {
+        const performLogin = async () => {
+            try {
+                const targetId = teacher.user_ID || teacher.ID || teacher._id;
+                const res = await fetch('/api/admin/impersonate-teacher', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ teacherId: targetId }),
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    clearAuthSession();
+                    localStorage.setItem('login', JSON.stringify({ role: 'teacher', user_ID: data.user_ID || targetId, loginTime: Date.now() }));
+                    if (data.token) {
+                        localStorage.setItem('authToken', data.token);
+                    }
+                    navigate('/teacher', { replace: true });
+                } else {
+                    const data = await res.json();
+                    showPopup(`შესვლა ვერ მოხერხდა: ${data.message}`, 'error');
+                }
+            } catch (err) {
+                showPopup('მასწავლებლის ანგარიშით შესვლისას მოხდა შეცდომა.', 'error');
+            }
+            setConfirmation(null);
+        };
+
+        setConfirmation({
+            message: `დარწმუნებული ხართ, რომ გსურთ შესვლა მასწავლებლის (${teacher.name} ${teacher.surname}) ანგარიშით?`,
+            onConfirm: performLogin,
+        });
+    };
+
     const handleCardClick = (label: string) => {
         switch (label) {
             case 'ადმინისტრატორები':
@@ -1828,7 +1861,7 @@ const Admin: React.FC = () => {
             case 'addStudentForm':
                 return <AddStudentForm onAddStudent={handleAddStudent} onBackClick={() => setView('studentOptions')} classes={classes} selectedColor={selectedColor} logoutButtonStyle={logoutButtonStyle} />;
             case 'teacherList':
-                return <TeacherList teachers={teachers} onEditTeacher={handleEditTeacher} onDeleteTeacher={handleDeleteTeacher} onResetPassword={handleResetTeacherPassword} onBackClick={handleBackClick} selectedColor={selectedColor} logoutButtonStyle={logoutButtonStyle} />;
+                return <TeacherList teachers={teachers} onEditTeacher={handleEditTeacher} onDeleteTeacher={handleDeleteTeacher} onResetPassword={handleResetTeacherPassword} onLoginAsTeacher={handleLoginAsTeacher} onBackClick={handleBackClick} selectedColor={selectedColor} logoutButtonStyle={logoutButtonStyle} />;
             case 'addTeacherForm':
                 return <AddTeacherForm onAddTeacher={handleAddTeacher} onCancel={() => setView('teacherOptions')} />;
             case 'addClassForm':

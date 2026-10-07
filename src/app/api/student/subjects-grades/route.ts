@@ -99,11 +99,12 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Deduplicate and filter valid subjects
+  // Deduplicate and filter valid subjects (skip subjects with 0 hours allocated)
   const seenSubjectIds = new Set<string>();
   const uniqueSubjectsToUse = [];
   for (const s of subjectsToUse) {
     if (!s || !s.subject_id) continue;
+    if (s.hours_per_week === 0 || Number(s.hours_per_week) === 0) continue;
     const sid = s.subject_id.toString();
     if (!seenSubjectIds.has(sid)) {
       seenSubjectIds.add(sid);

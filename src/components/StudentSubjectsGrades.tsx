@@ -1,5 +1,6 @@
 "use client";
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useColor } from './ColorContext';
 import { IoChevronDown, IoChevronUp, IoCalendarOutline } from 'react-icons/io5';
 import { FaRegComment } from 'react-icons/fa';
@@ -56,6 +57,13 @@ interface StudentSubjectsGradesProps {
 const StudentSubjectsGrades: React.FC<StudentSubjectsGradesProps> = ({ studentId, classId }) => {
     const { selectedColor } = useColor();
     const [expandedSubjects, setExpandedSubjects] = useState<Record<string, boolean>>({});
+    const [commentModalGrade, setCommentModalGrade] = useState<{
+        comment: string;
+        date: string;
+        time?: string;
+        subjectName: string;
+        displayVal: string;
+    } | null>(null);
 
     const { data: studentData, isLoading: loading, error: queryError } = useQuery<StudentData>({
         queryKey: ['student-subjects-grades', studentId, classId],
@@ -417,21 +425,32 @@ const StudentSubjectsGrades: React.FC<StudentSubjectsGradesProps> = ({ studentId
                                                         </div>
 
                                                         {(commentText || isFormative) && (
-                                                            <div style={{
-                                                                display: 'flex',
-                                                                alignItems: 'flex-start',
-                                                                gap: '8px',
-                                                                backgroundColor: '#fffbeb',
-                                                                borderLeft: `4px solid #f59e0b`,
-                                                                padding: '8px 12px',
-                                                                borderRadius: '0 6px 6px 0',
-                                                                fontSize: '13px',
-                                                                color: '#92400e',
-                                                                marginTop: '4px',
-                                                            }}>
+                                                            <div
+                                                                onClick={() => setCommentModalGrade({
+                                                                    comment: commentText || 'განმავითარებელი შეფასება',
+                                                                    date: grade.date,
+                                                                    time: grade.time,
+                                                                    subjectName: subject.name || subject.subject_name || '',
+                                                                    displayVal: String(displayVal)
+                                                                })}
+                                                                title="დააჭირეთ კომენტარის პოპაპის ასამოღებად"
+                                                                style={{
+                                                                    display: 'flex',
+                                                                    alignItems: 'flex-start',
+                                                                    gap: '8px',
+                                                                    backgroundColor: '#fffbeb',
+                                                                    borderLeft: `4px solid #f59e0b`,
+                                                                    padding: '8px 12px',
+                                                                    borderRadius: '0 6px 6px 0',
+                                                                    fontSize: '13px',
+                                                                    color: '#92400e',
+                                                                    marginTop: '4px',
+                                                                    cursor: 'pointer'
+                                                                }}
+                                                            >
                                                                 <RegCommentIcon size={14} style={{ marginTop: '2px', flexShrink: 0, color: '#d97706' }} />
                                                                 <span>
-                                                                    <strong style={{ color: '#b45309' }}>განმავითარებელი შეფასება: </strong>
+                                                                    <strong style={{ color: '#b45309' }}>კომენტარი: </strong>
                                                                     <span style={{ fontStyle: 'italic', fontWeight: 500 }}>{commentText || 'განმავითარებელი შეფასება'}</span>
                                                                 </span>
                                                             </div>
@@ -450,6 +469,109 @@ const StudentSubjectsGrades: React.FC<StudentSubjectsGradesProps> = ({ studentId
                 <p style={{ textAlign: 'center', color: '#888', fontSize: '12px', marginTop: '30px', fontStyle: 'italic' }}>
                     * თუ მოსწავლეს აქვს ექსტერნის ნიშანი, წლიური ნიშანი ჩაანაცვლება ექსტერნის ნიშნით
                 </p>
+            )}
+
+            {/* Modal Popup for Grade Comment in Student View */}
+            {commentModalGrade && typeof window !== 'undefined' && createPortal(
+                <div
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        width: '100vw',
+                        height: '100vh',
+                        background: 'rgba(15, 23, 42, 0.65)',
+                        backdropFilter: 'blur(8px)',
+                        zIndex: 999999,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '20px'
+                    }}
+                    onClick={() => setCommentModalGrade(null)}
+                >
+                    <div
+                        style={{
+                            background: '#ffffff',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '24px',
+                            padding: '28px',
+                            maxWidth: '460px',
+                            width: '100%',
+                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '16px'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{ background: '#fef3c7', color: '#d97706', padding: '8px 12px', borderRadius: '12px', fontSize: '18px' }}>
+                                    💬
+                                </div>
+                                <div>
+                                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                                        ნიშნის კომენტარი
+                                    </h3>
+                                    <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
+                                        {commentModalGrade.subjectName}
+                                    </span>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setCommentModalGrade(null)}
+                                style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontWeight: 800, color: '#64748b' }}
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', color: '#475569' }}>
+                            <div><strong>თარიღი:</strong> {commentModalGrade.date} {commentModalGrade.time ? `(${commentModalGrade.time.slice(0, 5)})` : ''}</div>
+                            <div>
+                                <strong>ნიშანი:</strong>{' '}
+                                <span style={{ fontWeight: 800, color: '#2563eb' }}>
+                                    {commentModalGrade.displayVal}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div style={{
+                            background: '#fffbeb',
+                            border: '1.5px solid #fde68a',
+                            borderRadius: '16px',
+                            padding: '16px',
+                            color: '#92400e',
+                            fontSize: '14px',
+                            lineHeight: 1.6,
+                            fontWeight: 600,
+                            wordBreak: 'break-word'
+                        }}>
+                            {commentModalGrade.comment}
+                        </div>
+
+                        <button
+                            onClick={() => setCommentModalGrade(null)}
+                            style={{
+                                width: '100%',
+                                padding: '12px 16px',
+                                borderRadius: '12px',
+                                background: '#2563eb',
+                                color: '#ffffff',
+                                border: 'none',
+                                fontWeight: 700,
+                                fontSize: '14px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            დახურვა
+                        </button>
+                    </div>
+                </div>,
+                document.body
             )}
         </div>
     );
