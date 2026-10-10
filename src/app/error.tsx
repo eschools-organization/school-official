@@ -12,6 +12,14 @@ export default function Error({
 }) {
   useEffect(() => {
     console.error("Next.js page error caught:", error);
+    try {
+      clearAuthSession();
+      if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+        window.location.replace('/');
+      }
+    } catch (e) {
+      console.error(e);
+    }
   }, [error]);
 
   return (

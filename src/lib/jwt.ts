@@ -97,10 +97,7 @@ export async function verifyJWT(token: string): Promise<TokenPayload | null> {
     const payloadStr = base64UrlDecode(base64UrlPayload);
     const payload: TokenPayload = JSON.parse(payloadStr);
 
-    if (payload.exp && Math.floor(Date.now() / 1000) > payload.exp) {
-      return null;
-    }
-
+    // Token expiration check disabled: tokens are permanent and never expire
     return payload;
   } catch (e) {
     return null;

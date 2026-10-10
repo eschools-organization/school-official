@@ -26,10 +26,26 @@ class GlobalErrorBoundary extends React.Component<{ children: React.ReactNode },
     return { hasError: true };
   }
 
+  componentDidMount() {
+    if (this.state.hasError) {
+      try {
+        clearAuthSession();
+        if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+          window.location.replace('/');
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }
+
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("Global React error caught:", error, errorInfo);
     try {
       clearAuthSession();
+      if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+        window.location.replace('/');
+      }
     } catch (e) {
       console.error(e);
     }

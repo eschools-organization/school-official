@@ -11,6 +11,14 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error("Next.js global layout error caught:", error);
+    try {
+      clearAuthSession();
+      if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+        window.location.replace('/');
+      }
+    } catch (e) {
+      console.error(e);
+    }
   }, [error]);
 
   return (
