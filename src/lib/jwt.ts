@@ -42,7 +42,7 @@ function base64UrlDecode(str: string): string {
 
 export async function signJWT(
   payload: { user_ID: string; role: string; [key: string]: any },
-  expiresInSeconds = 7 * 24 * 60 * 60
+  expiresInSeconds = 365 * 24 * 60 * 60 * 10
 ): Promise<string> {
   const header = { alg: "HS256", typ: "JWT" };
   const exp = Math.floor(Date.now() / 1000) + expiresInSeconds;

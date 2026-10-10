@@ -29,9 +29,9 @@ export function checkResponseAuth(res: Response): boolean {
     if (typeof window !== 'undefined' && window.location.pathname !== '/') {
       const now = Date.now();
       const lastRedirect = parseInt(sessionStorage.getItem('last_auth_redirect') || '0', 10);
-      if (now - lastRedirect > 3000) {
+      if (now - lastRedirect > 1000) {
         sessionStorage.setItem('last_auth_redirect', now.toString());
-        window.location.href = '/';
+        window.location.replace('/');
       }
     }
     return false;
