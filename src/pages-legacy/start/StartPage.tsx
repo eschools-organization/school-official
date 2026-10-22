@@ -28,26 +28,17 @@ const StartPage: React.FC = () => {
     const [infoModal, setInfoModal] = useState<{ isOpen: boolean; message: string; isSuccess: boolean }>({ isOpen: false, message: '', isSuccess: false });
 
     useEffect(() => {
+        // Clear previous session state on start page so fresh login is always required
         try {
-            const loginDataStr = localStorage.getItem('login');
-            if (loginDataStr) {
-                if (validateSession()) {
-                    const loginData = JSON.parse(loginDataStr);
-                    const route = (loginData.role === 'superadmin' || loginData.role === 'resource_center') ? '/admin' : `/${loginData.role}`;
-                    navigate(route, { replace: true });
-                } else {
-                    clearAuthSession();
-                }
-            }
-        } catch (e) {
-            console.error(e);
             clearAuthSession();
+        } catch (e) {
+            console.error('Error clearing session on start page:', e);
         }
 
         return () => {
             if (timerRef.current) clearTimeout(timerRef.current);
         };
-    }, [navigate]);
+    }, []);
 
     const items: { icon: IconType; label: string; action: 'login' | 'register' }[] = [
         { icon: FaUserGraduate, label: 'მოსწავლე', action: 'login' },

@@ -6,14 +6,31 @@
 export function clearAuthSession() {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.removeItem('login');
-    localStorage.removeItem('studentId');
-    localStorage.removeItem('classId');
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('seen_incoming_messages_count');
-    localStorage.removeItem('seen_notices_count');
-    localStorage.removeItem('seen_incoming_messages_count_teacher');
-    localStorage.removeItem('seen_notices_count_teacher');
+    const keysToRemove = [
+      'login',
+      'studentId',
+      'classId',
+      'authToken',
+      'seen_incoming_messages_count',
+      'seen_notices_count',
+      'seen_incoming_messages_count_teacher',
+      'seen_notices_count_teacher',
+      'admin_current_view',
+      'admin_selected_student_card',
+      'admin_selected_class_history',
+      'admin_selected_subject_history',
+      'edit_class_selected_id',
+    ];
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+
+    // Also remove cached history or drafts from previous sessions
+    const allKeys = Object.keys(localStorage);
+    for (const key of allKeys) {
+      if (key.startsWith('history_cache_') || key.startsWith('teacher_grades_draft_')) {
+        localStorage.removeItem(key);
+      }
+    }
+    sessionStorage.clear();
   } catch (e) {
     console.error('Error clearing auth session:', e);
   }
