@@ -1,6 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   serverExternalPackages: ["mongodb"],
+  transpilePackages: [
+    "@tanstack/react-query",
+    "@tanstack/query-core",
+    "react-router",
+    "react-router-dom",
+    "@remix-run/router",
+    "react-icons",
+  ],
   compress: true,
   reactStrictMode: false,
   poweredByHeader: false,

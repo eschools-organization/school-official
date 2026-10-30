@@ -55,10 +55,11 @@ const StartPage: React.FC = () => {
 
     const handleLogin = async (role: string, user_ID: string, password: string) => {
         try {
+            const cleanUserId = user_ID.trim().replace(/[–—]/g, '-');
             const res = await fetch(`/api/` + role + '/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_ID, password })
+                body: JSON.stringify({ user_ID: cleanUserId, password })
             });
             
             if (res.ok) {
@@ -67,17 +68,23 @@ const StartPage: React.FC = () => {
                 
                 clearAuthSession();
                 const activeRole = data.role || role;
-                localStorage.setItem('login', JSON.stringify({ role: activeRole, user_ID, loginTime: Date.now() }));
-                
-                if (role === 'student' && data.user_ID && data.class_id) {
-                    localStorage.setItem('studentId', data.user_ID);
-                    localStorage.setItem('classId', data.class_id);
+                const canonicalUserId = String(data.user_ID || data.ID || cleanUserId).trim();
+                try {
+                    localStorage.setItem('login', JSON.stringify({ role: activeRole, user_ID: canonicalUserId, loginTime: Date.now() }));
+                    
+                    if (role === 'student') {
+                        const resolvedClassId = data.class_id || data.classInfo?._id || '';
+                        if (canonicalUserId) localStorage.setItem('studentId', canonicalUserId);
+                        if (resolvedClassId) localStorage.setItem('classId', String(resolvedClassId));
+                    }
+                } catch (storageErr) {
+                    console.warn('Storage warning during login:', storageErr);
                 }
                 
                 const targetRoute = (activeRole === 'superadmin' || activeRole === 'resource_center' || role === 'admin') ? '/admin' : `/${role}`;
                 navigate(targetRoute, { replace: true });
             } else {
-                const errorData = await res.json();
+                const errorData = await res.json().catch(() => ({}));
                 setInfoModal({ isOpen: true, message: errorData.message || 'ავტორიზაცია ვერ მოხერხდა', isSuccess: false });
             }
         } catch (err) {

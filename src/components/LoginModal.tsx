@@ -26,40 +26,65 @@ const LoginModal: React.FC<LoginModalProps> = ({ open, onClose, onLogin, role })
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user_ID || !password) {
+    const cleanUserId = user_ID.trim().replace(/[–—]/g, '-');
+    if (!cleanUserId || !password) {
       setError('გთხოვთ, შეიყვანოთ მომხმარებლის ID და პაროლი.');
       return;
     }
     setError('');
-    onLogin(role, user_ID, password);
+    onLogin(role, cleanUserId, password);
   };
 
   const modalOverlayStyle: React.CSSProperties = {
-    position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-    background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    background: 'rgba(0,0,0,0.65)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+    overflowY: 'auto',
+    WebkitOverflowScrolling: 'touch',
+    padding: '16px',
+    boxSizing: 'border-box',
   };
 
   const modalContentStyle: React.CSSProperties = {
     background: '#fff',
-    padding: '24px',
-    borderRadius: '12px',
+    padding: '24px 20px',
+    borderRadius: '18px',
     width: '100%',
     maxWidth: '400px',
-    margin: '0 16px',
-    boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+    margin: 'auto',
+    boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
     position: 'relative',
-    fontFamily: 'sans-serif',
+    fontFamily: 'inherit',
+    boxSizing: 'border-box',
+    maxHeight: '90vh',
+    overflowY: 'auto',
+    WebkitOverflowScrolling: 'touch',
   };
   
   const closeButtonStyle: React.CSSProperties = {
       position: 'absolute',
-      top: '16px',
-      right: '16px',
+      top: '12px',
+      right: '12px',
       background: 'transparent',
       border: 'none',
       cursor: 'pointer',
       fontSize: '24px',
-      color: '#888'
+      color: '#64748b',
+      minHeight: '44px',
+      minWidth: '44px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 0,
   };
 
   const titleStyle: React.CSSProperties = {
@@ -146,7 +171,16 @@ const LoginModal: React.FC<LoginModalProps> = ({ open, onClose, onLogin, role })
         <form onSubmit={handleSubmit}>
           <div style={formGroupStyle}>
             <label style={labelStyle}>პირადი ნომერი:</label>
-            <input type="text" value={user_ID} onChange={e => setUserID(e.target.value)} style={inputStyle} />
+            <input
+              type="text"
+              autoComplete="username"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              value={user_ID}
+              onChange={e => setUserID(e.target.value)}
+              style={inputStyle}
+            />
           </div>
           <div style={formGroupStyle}>
             <label style={labelStyle}>პაროლი:</label>

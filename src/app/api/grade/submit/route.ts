@@ -62,8 +62,105 @@ export async function POST(req: NextRequest) {
   delete grade.id;
   delete grade._id;
 
+  // Determine how many lessons of this subject are scheduled for this class on this date
+  let maxLessons = 1;
+  if (grade.class_id && grade.subject_id && grade.date) {
+    const [cls, evt] = await Promise.all([
+      db.collection("class").findOne({ _id: grade.class_id }),
+      db.collection("calendar_events").findOne({ date: grade.date }),
+    ]);
+    if (cls && Array.isArray(cls.calendar)) {
+      let dayIdx = -1;
+      if (evt && evt.type === "makeup" && typeof evt.replacementDayOfWeek === "number") {
+        dayIdx = evt.replacementDayOfWeek;
+      } else {
+        const parts = String(grade.date).split("-").map(Number);
+        if (parts.length === 3 && !parts.some(isNaN)) {
+          const jsDay = new Date(parts[0], parts[1] - 1, parts[2]).getDay();
+          if (jsDay >= 1 && jsDay <= 5) dayIdx = jsDay - 1;
+        }
+      }
+      if (dayIdx >= 0 && Array.isArray(cls.calendar[dayIdx])) {
+        const count = cls.calendar[dayIdx].filter(
+          (slot: any) => slot && String(slot.subject_id) === String(grade.subject_id)
+        ).length;
+        maxLessons = Math.max(1, count);
+      }
+    }
+  }
+
+  if (!grade.lesson_num || maxLessons <= 1 || grade.lesson_num > maxLessons) {
+    grade.lesson_num = 1;
+  }
+
   const collectionName = getGradesCollectionName(grade.date);
-  
+
+  // Check existing grades for this student, subject, and date so we update in-place and never duplicate
+  if (grade.student_id && grade.subject_id && grade.date) {
+    const sIdStr = String(grade.student_id);
+    const subjIdStr = String(grade.subject_id);
+    const studentIds: any[] = [sIdStr];
+    if (ObjectId.isValid(sIdStr)) studentIds.push(new ObjectId(sIdStr));
+    const subjectIds: any[] = [subjIdStr];
+    if (ObjectId.isValid(subjIdStr)) subjectIds.push(new ObjectId(subjIdStr));
+
+    const existingDocs = await db
+      .collection(collectionName)
+      .find({
+        student_id: { $in: studentIds },
+        subject_id: { $in: subjectIds },
+        date: grade.date,
+      })
+      .toArray();
+
+    let matchedDocs: any[] = [];
+    if (maxLessons <= 1) {
+      matchedDocs = existingDocs;
+    } else {
+      if (targetId) {
+        matchedDocs = existingDocs.filter(
+          (d) => String(d._id) === String(targetId) || (d.lesson_num || 1) === grade.lesson_num
+        );
+      }
+      if (matchedDocs.length === 0) {
+        if (grade.lesson_num === 1) {
+          matchedDocs = existingDocs.filter(
+            (d) => !d.lesson_num || d.lesson_num === 1 || d.lesson_num > maxLessons
+          );
+        } else {
+          matchedDocs = existingDocs.filter((d) => d.lesson_num === grade.lesson_num);
+        }
+      }
+    }
+
+    if (matchedDocs.length > 0) {
+      const targetDoc =
+        (targetId && matchedDocs.find((d) => String(d._id) === String(targetId))) || matchedDocs[0];
+
+      await db.collection(collectionName).updateOne({ _id: targetDoc._id }, { $set: grade });
+
+      const duplicateIds = matchedDocs
+        .filter((d) => String(d._id) !== String(targetDoc._id))
+        .map((d) => d._id);
+
+      if (duplicateIds.length > 0) {
+        await db.collection(collectionName).deleteMany({ _id: { $in: duplicateIds } });
+        await db.collection("students").updateOne(
+          { _id: grade.student_id },
+          { $pull: { points: { $in: duplicateIds } } as any }
+        );
+      }
+
+      await db.collection("students").updateOne(
+        { _id: grade.student_id },
+        { $addToSet: { points: targetDoc._id } }
+      );
+
+      invalidateCache(["student_grades_", "top_students_api", "class_stats_", "class_grades_"]);
+      return NextResponse.json({ message: "ნიშანი წარმატებით განახლდა!" });
+    }
+  }
+
   if (targetId && ObjectId.isValid(targetId)) {
     const objectId = new ObjectId(targetId);
     const updateResult = await db.collection(collectionName).updateOne(
@@ -92,7 +189,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  invalidateCache(["student_grades_", "top_students_api", "class_stats_"]);
+  invalidateCache(["student_grades_", "top_students_api", "class_stats_", "class_grades_"]);
 
   return NextResponse.json({ message: "ნიშანი წარმატებით დაემატა ან განახლდა!" });
 }

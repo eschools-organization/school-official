@@ -3,12 +3,25 @@ import { getDb } from "@/lib/db";
 import bcrypt from "bcryptjs";
 
 export async function POST(req: NextRequest) {
-  const { user_ID, password } = await req.json();
-  const db = await getDb();
-  let result = await db.collection("admins").findOne({ user_ID });
+  const body = await req.json();
+  const rawUserId = (body.user_ID || body.ID || body.username || "").toString().trim().replace(/[–—]/g, "-");
+  const password = (body.password ?? "").toString();
 
-  if (!result && user_ID === "resource_center") {
-    const hashedPassword = await bcrypt.hash(password || "resource_center", 10);
+  if (!rawUserId || !password) {
+    return NextResponse.json({ message: "მონაცემები არასწორია" }, { status: 401 });
+  }
+
+  const db = await getDb();
+  const escapedId = rawUserId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  let result = await db.collection("admins").findOne({
+    $or: [
+      { user_ID: rawUserId },
+      { user_ID: { $regex: new RegExp(`^${escapedId}$`, "i") } },
+    ],
+  });
+
+  if (!result && rawUserId.toLowerCase() === "resource_center") {
+    const hashedPassword = await bcrypt.hash(password.trim() || "resource_center", 10);
     const defaultRcDoc = {
       name: "რესურსცენტრი",
       surname: "სისტემის",
@@ -25,7 +38,10 @@ export async function POST(req: NextRequest) {
   if (!result) {
     return NextResponse.json({ message: "მონაცემები არასწორია" }, { status: 401 });
   }
-  const match = await bcrypt.compare(password, result.password);
+  let match = await bcrypt.compare(password, result.password);
+  if (!match && password !== password.trim()) {
+    match = await bcrypt.compare(password.trim(), result.password);
+  }
   if (match) {
     const role = result.role || (result.user_ID === "kakhi-kakhidze" ? "superadmin" : "admin");
     return NextResponse.json({

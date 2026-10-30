@@ -47,6 +47,15 @@ const isSameId = (a: any, b: any): boolean => {
   return extractIdStr(a) === extractIdStr(b);
 };
 
+const matchesTeacherUserId = (t: any, uid: any): boolean => {
+  if (!t || !uid) return false;
+  const target = String(uid).trim().toLowerCase();
+  if (!target) return false;
+  const tUserId = t.user_ID ? String(t.user_ID).trim().toLowerCase() : "";
+  const tId = t.ID ? String(t.ID).trim().toLowerCase() : "";
+  return tUserId === target || tId === target;
+};
+
 const TutorClassDetails: React.FC<{
   allSubjects: any[];
   allTeachers: any[];
@@ -467,7 +476,7 @@ const Teacher: React.FC = () => {
         teachers.sort((a: any, b: any) => `${a.name || ''} ${a.surname || ''}`.localeCompare(`${b.name || ''} ${b.surname || ''}`, 'ka'));
       }
       setAllTeachers(teachers);
-      const teacher = teachers.find((t: any) => t.user_ID === user_ID);
+      const teacher = teachers.find((t: any) => matchesTeacherUserId(t, user_ID));
       if (!teacher) return;
       const teacherId = teacher._id;
       // Fetch all subjects for subject names
@@ -1039,7 +1048,7 @@ const Teacher: React.FC = () => {
     const [students, setStudents] = useState<any[]>([]);
     const [gradeType, setGradeType] = useState("აღრიცხვა");
     const [grades, setGrades] = useState<{
-      [studentId: string]: { attendance: boolean; point: string; comment?: string; excuse_reason?: string };
+      [studentId: string]: { _id?: string; attendance: boolean; point: string; comment?: string; excuse_reason?: string };
     }>({});
     const [isProjectToggle, setIsProjectToggle] = useState(false);
     const [lessonNum, setLessonNum] = useState<number>(1);
@@ -1141,7 +1150,7 @@ const Teacher: React.FC = () => {
         const tRes = await fetch("/api/teacher/all");
         if (tRes.ok) {
           const allTeachers = await tRes.json();
-          const teacher = allTeachers.find((t: any) => t.user_ID === user_ID);
+          const teacher = allTeachers.find((t: any) => matchesTeacherUserId(t, user_ID));
           if (teacher) {
             setCurrentTeacherId(teacher._id);
             if (teacher.gradeEntryStartDate) {
@@ -1168,91 +1177,184 @@ const Teacher: React.FC = () => {
     }, [year, month, day]);
 
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const draftStorageKey = `draft_grades_${id}_${selectedSubject}_${dateStr}_${lessonNum}`;
 
-    // Fetch existing grades or load draft when date, subject, or lessonNum changes
-    useEffect(() => {
-      if (!id || !selectedSubject || !day || !month || !year || students.length === 0) return;
-      
-      const savedDraft = localStorage.getItem(draftStorageKey);
-      if (savedDraft) {
-        try {
-          const parsed = JSON.parse(savedDraft);
-          if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
-            setGrades(parsed);
-            setIsDraftLoaded(true);
-            return;
-          }
-        } catch (e) {
-          console.error("Error parsing saved draft:", e);
-        }
+    const maxLessonsForSelectedDate = React.useMemo(() => {
+      const clsObj = teachesClasses.find((cls: any) => isSameId(cls._id, id))
+        || tutorClasses.find((cls: any) => isSameId(cls._id, id));
+      if (!clsObj || !Array.isArray(clsObj.calendar) || !selectedSubject) return 1;
+
+      const calEvt = calendarEvents && Array.isArray(calendarEvents)
+        ? calendarEvents.find((e: any) => e.date === dateStr)
+        : null;
+
+      let scheduleDayIdx = -1;
+      if (calEvt?.type === 'makeup' && typeof calEvt.replacementDayOfWeek === 'number') {
+        scheduleDayIdx = calEvt.replacementDayOfWeek;
+      } else {
+        const jsDay = new Date(year, month, day).getDay();
+        if (jsDay >= 1 && jsDay <= 5) scheduleDayIdx = jsDay - 1;
       }
 
-      setIsDraftLoaded(false);
+      const daySchedule = scheduleDayIdx >= 0 ? clsObj.calendar[scheduleDayIdx] : [];
+      const count = Array.isArray(daySchedule)
+        ? daySchedule.filter((slot: any) => slot && isSameId(slot.subject_id, selectedSubject)).length
+        : 1;
+      return Math.max(1, count);
+    }, [teachesClasses, tutorClasses, id, selectedSubject, calendarEvents, dateStr, year, month, day]);
+
+    useEffect(() => {
+      if (lessonNum > maxLessonsForSelectedDate || lessonNum < 1) {
+        setLessonNum(1);
+      }
+    }, [maxLessonsForSelectedDate, lessonNum]);
+
+    const effectiveLessonNum = lessonNum > maxLessonsForSelectedDate || lessonNum < 1 ? 1 : lessonNum;
+    const draftStorageKey = `draft_grades_${id}_${selectedSubject}_${dateStr}_${effectiveLessonNum}`;
+
+    const mapExistingGradesToState = React.useCallback((existingGradesList: any[], studentList: any[]) => {
+      const newGradesState: Record<string, any> = {};
+      studentList.forEach((s: any) => {
+        newGradesState[s._id] = { attendance: true, point: "", comment: "" };
+      });
+      if (Array.isArray(existingGradesList) && existingGradesList.length > 0) {
+        existingGradesList.forEach((g: any) => {
+          const sId = extractIdStr(g.student_id);
+          const mappedPoint =
+            g.point === -3
+              ? (g.checked === false ? "არ ჩთ" : "ჩთ")
+              : typeof g.point === "number" && g.point >= 0
+              ? String(g.point)
+              : "";
+          const mappedComment =
+            g.comment ||
+            (typeof g.point === "string" &&
+            isNaN(parseInt(g.point, 10)) &&
+            !["ჩთ", "არ ჩთ", "-1", "-2", "-3", "განმავითარებელი"].includes(g.point)
+              ? g.point
+              : "");
+          const mappedAttendance = g.checked !== false && g.point !== -2;
+
+          const prev = newGradesState[sId];
+          // If multiple records exist for the same student, prefer the one with a grade/comment
+          if (!prev || !prev._id || mappedPoint !== "" || mappedComment !== "" || !mappedAttendance) {
+            newGradesState[sId] = {
+              _id: extractIdStr(g._id),
+              attendance: mappedAttendance,
+              point: mappedPoint,
+              comment: mappedComment,
+              excuse_reason: g.excuse_reason,
+            };
+          }
+        });
+      }
+      return newGradesState;
+    }, []);
+
+    // Fetch existing grades when date, subject, or lessonNum changes
+    useEffect(() => {
+      if (!id || !selectedSubject || !day || month === undefined || month === null || !year || students.length === 0) return;
+
+      let cancelled = false;
       const fetchExistingGrades = async () => {
         try {
-          const res = await fetch(`/api/grades?class_id=${id}&subject_id=${selectedSubject}&date=${dateStr}&lesson_num=${lessonNum}`);
+          const res = await fetch(
+            `/api/grades?class_id=${id}&subject_id=${selectedSubject}&date=${dateStr}&lesson_num=${effectiveLessonNum}`,
+            { cache: "no-store" }
+          );
+          if (cancelled) return;
           if (res.ok) {
             const existingGradesList = await res.json();
-            const newGradesState: Record<string, any> = {};
-            students.forEach((s: any) => {
-              newGradesState[s._id] = { attendance: true, point: "", comment: "" };
-            });
+            if (cancelled) return;
+            const dbGradesState = mapExistingGradesToState(existingGradesList, students);
+
             if (Array.isArray(existingGradesList) && existingGradesList.length > 0) {
-              existingGradesList.forEach((g: any) => {
-                const sId = String(g.student_id);
-                newGradesState[sId] = {
-                  attendance: g.checked ?? true,
-                  point: g.point >= 0 ? String(g.point) : (g.comment || (g.is_formative ? "განმავითარებელი" : "")),
-                  comment: g.comment || "",
-                  excuse_reason: g.excuse_reason
-                };
-              });
+              const firstWithType = existingGradesList.find((g: any) => g.pointType);
+              if (firstWithType?.pointType) {
+                setPointType(firstWithType.pointType);
+              }
             }
-            setGrades(newGradesState);
+
+            const savedDraft = localStorage.getItem(draftStorageKey);
+            if (savedDraft) {
+              try {
+                const parsed = JSON.parse(savedDraft);
+                if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+                  if (!Array.isArray(existingGradesList) || existingGradesList.length === 0) {
+                    setGrades(parsed);
+                    setIsDraftLoaded(true);
+                    return;
+                  } else {
+                    // Merge draft on top of DB grades while preserving DB _ids and never wiping existing DB grades with empty draft fields
+                    const merged: Record<string, any> = { ...dbGradesState };
+                    let hasDraftDiff = false;
+                    for (const [sId, draftVal] of Object.entries<any>(parsed)) {
+                      const dbVal = dbGradesState[sId];
+                      if (!dbVal) continue;
+                      const useDraftPoint = draftVal.point !== undefined && draftVal.point !== "" ? draftVal.point : dbVal.point;
+                      const useDraftComment = draftVal.comment !== undefined && draftVal.comment !== "" ? draftVal.comment : dbVal.comment;
+                      const useDraftAttendance = draftVal.attendance !== undefined ? draftVal.attendance : dbVal.attendance;
+                      if (useDraftPoint !== dbVal.point || useDraftComment !== dbVal.comment || useDraftAttendance !== dbVal.attendance) {
+                        hasDraftDiff = true;
+                      }
+                      merged[sId] = {
+                        ...dbVal,
+                        ...draftVal,
+                        _id: dbVal._id || draftVal._id,
+                        point: useDraftPoint,
+                        comment: useDraftComment,
+                        attendance: useDraftAttendance,
+                      };
+                    }
+                    setGrades(merged);
+                    setIsDraftLoaded(hasDraftDiff);
+                    if (!hasDraftDiff) {
+                      localStorage.removeItem(draftStorageKey);
+                    }
+                    return;
+                  }
+                }
+              } catch (e) {
+                console.error("Error parsing saved draft:", e);
+              }
+            }
+
+            setIsDraftLoaded(false);
+            setGrades(dbGradesState);
           }
         } catch (err) {
           console.error("Error fetching existing grades:", err);
         }
       };
       fetchExistingGrades();
-    }, [id, selectedSubject, year, month, day, lessonNum, students, draftStorageKey]);
+      return () => {
+        cancelled = true;
+      };
+    }, [id, selectedSubject, year, month, day, effectiveLessonNum, students, dateStr, draftStorageKey, mapExistingGradesToState]);
 
-    // Save draft automatically on grade changes
-    useEffect(() => {
-      if (!id || !selectedSubject || students.length === 0 || !grades || Object.keys(grades).length === 0) return;
-      const hasAnyData = Object.values(grades).some(
+    const saveDraftToStorage = (nextGrades: Record<string, any>) => {
+      if (!id || !selectedSubject || students.length === 0) return;
+      const hasAnyData = Object.values(nextGrades).some(
         (g: any) => g.point !== "" || (g.comment && g.comment.trim() !== "") || g.attendance === false
       );
       if (hasAnyData) {
-        localStorage.setItem(draftStorageKey, JSON.stringify(grades));
+        localStorage.setItem(draftStorageKey, JSON.stringify(nextGrades));
+      } else {
+        localStorage.removeItem(draftStorageKey);
       }
-    }, [grades, draftStorageKey, id, selectedSubject, students]);
+    };
 
     const handleDiscardDraft = () => {
       localStorage.removeItem(draftStorageKey);
       setIsDraftLoaded(false);
       const fetchExistingGrades = async () => {
         try {
-          const res = await fetch(`/api/grades?class_id=${id}&subject_id=${selectedSubject}&date=${dateStr}&lesson_num=${lessonNum}`);
+          const res = await fetch(
+            `/api/grades?class_id=${id}&subject_id=${selectedSubject}&date=${dateStr}&lesson_num=${effectiveLessonNum}`,
+            { cache: "no-store" }
+          );
           if (res.ok) {
             const existingGradesList = await res.json();
-            const newGradesState: Record<string, any> = {};
-            students.forEach((s: any) => {
-              newGradesState[s._id] = { attendance: true, point: "", comment: "" };
-            });
-            if (Array.isArray(existingGradesList) && existingGradesList.length > 0) {
-              existingGradesList.forEach((g: any) => {
-                const sId = String(g.student_id);
-                newGradesState[sId] = {
-                  attendance: g.checked ?? true,
-                  point: g.point >= 0 ? String(g.point) : (g.comment || (g.is_formative ? "განმავითარებელი" : "")),
-                  comment: g.comment || "",
-                  excuse_reason: g.excuse_reason
-                };
-              });
-            }
-            setGrades(newGradesState);
+            setGrades(mapExistingGradesToState(existingGradesList, students));
           }
         } catch (err) {
           console.error("Error fetching existing grades:", err);
@@ -1383,31 +1485,41 @@ const Teacher: React.FC = () => {
       setGrades((prev) => {
         const currentGrade = prev[studentId];
         const wasAbsent = currentGrade?.attendance === false;
-        return {
+        const next = {
           ...prev,
           [studentId]: {
             ...currentGrade,
             attendance: checked,
             point: checked ? (wasAbsent ? "" : (currentGrade?.point ?? "")) : "",
+            comment: checked ? (wasAbsent ? "" : (currentGrade?.comment ?? "")) : "",
           },
         };
+        saveDraftToStorage(next);
+        return next;
       });
     };
     const handlePointChange = (studentId: string, value: string) => {
-      setGrades((prev) => ({
-        ...prev,
-        [studentId]: { ...prev[studentId], point: value },
-      }));
+      setGrades((prev) => {
+        const next = {
+          ...prev,
+          [studentId]: { ...prev[studentId], point: value },
+        };
+        saveDraftToStorage(next);
+        return next;
+      });
     };
     const handleCommentChange = (studentId: string, commentVal: string) => {
-      setGrades((prev) => ({
-        ...prev,
-        [studentId]: {
-          ...prev[studentId],
-          comment: commentVal,
-          point: commentVal.trim() !== "" ? "განმავითარებელი" : "",
-        },
-      }));
+      setGrades((prev) => {
+        const next = {
+          ...prev,
+          [studentId]: {
+            ...prev[studentId],
+            comment: commentVal,
+          },
+        };
+        saveDraftToStorage(next);
+        return next;
+      });
     };
 
     // Memoize the student list to prevent unnecessary re-renders
@@ -1433,7 +1545,7 @@ const Teacher: React.FC = () => {
       const tRes = await fetch("/api/teacher/all");
       if (!tRes.ok) return alert("მასწავლებლის იდენტიფიკაცია ვერ მოხერხდა");
       const allTeachers = await tRes.json();
-      const teacher = allTeachers.find((t: any) => t.user_ID === user_ID);
+      const teacher = allTeachers.find((t: any) => matchesTeacherUserId(t, user_ID));
       if (!teacher) return alert("მასწავლებელი ვერ მოიძებნა");
       const teacherId = teacher._id;
       // Get classId from useParams
@@ -1447,13 +1559,21 @@ const Teacher: React.FC = () => {
         if (!grade) continue;
         const isNumeric = !isNaN(parseInt(grade.point, 10)) && grade.point !== "ჩთ" && grade.point !== "არ ჩთ";
         const pointValue = isNumeric ? parseInt(grade.point, 10) : (grade.point === "ჩთ" || grade.point === "არ ჩთ" ? -3 : -1);
-        const commentText = grade.comment || (isCommentOnly ? (grade.point !== "განმავითარებელი" ? grade.point : "") : (typeof grade.point === "string" && !isNumeric && grade.point !== "ჩთ" && grade.point !== "არ ჩთ" ? grade.point : ""));
-        const isFormative = isCommentOnly || (typeof commentText === "string" && commentText.trim() !== "");
+        const rawComment = typeof grade.comment === "string" ? grade.comment.trim() : "";
+        const fallbackPointComment =
+          typeof grade.point === "string" &&
+          !isNumeric &&
+          !["ჩთ", "არ ჩთ", "განმავითარებელი", "-1", "-2", "-3"].includes(grade.point)
+            ? grade.point.trim()
+            : "";
+        const commentText = grade.attendance === false ? "" : (rawComment || fallbackPointComment);
+        const isFormative = isCommentOnly || (pointValue === -1 && commentText !== "");
         const isExcused = grade.attendance === false && grade.excuse_reason && grade.excuse_reason !== "general_unexcused";
+        const checkedVal = grade.point === "არ ჩთ" ? false : (grade.attendance ?? true);
 
         const now = new Date();
         const timeStr = now.toTimeString().split(" ")[0]; // "HH:MM:SS"
-        const payload = {
+        const payload: any = {
           student_id: student._id,
           teacher_id: teacherId,
           class_id: classId,
@@ -1463,12 +1583,15 @@ const Teacher: React.FC = () => {
           date: dateStr,
           time: timeStr,
           comment: commentText,
-          checked: grades[student._id]?.attendance ?? true,
+          checked: checkedVal,
           is_excused: isExcused,
           excuse_reason: isExcused ? grade.excuse_reason : undefined,
           is_formative: isFormative,
-          lesson_num: lessonNum
+          lesson_num: effectiveLessonNum,
         };
+        if (grade._id) {
+          payload.id = grade._id;
+        }
         gradesToSave.push(payload);
       }
       if (gradesToSave.length > 0) {
@@ -1482,6 +1605,16 @@ const Teacher: React.FC = () => {
           localStorage.removeItem(draftStorageKey);
           setIsDraftLoaded(false);
           setFilledDates((prev) => new Set(prev).add(dateStr));
+          try {
+            const refreshedRes = await fetch(
+              `/api/grades?class_id=${id}&subject_id=${selectedSubject}&date=${dateStr}&lesson_num=${effectiveLessonNum}`,
+              { cache: "no-store" }
+            );
+            if (refreshedRes.ok) {
+              const refreshedList = await refreshedRes.json();
+              setGrades(mapExistingGradesToState(refreshedList, students));
+            }
+          } catch (e) {}
           setInfoModalMessage("ყველა ნიშანი წარმატებით შეინახა!");
           setInfoModalOpen(true);
         } else {
@@ -1507,7 +1640,7 @@ const Teacher: React.FC = () => {
     if (classObj && Array.isArray(classObj.subjects)) {
       const loginData = JSON.parse(localStorage.getItem("login") || "{}");
       const user_ID = loginData.user_ID;
-      const teacher = allTeachers.find((t: any) => t.user_ID === user_ID);
+      const teacher = allTeachers.find((t: any) => matchesTeacherUserId(t, user_ID));
       if (teacher) {
         teacherSubjects = classObj.subjects.filter(
           (subj: any) => 
@@ -1611,9 +1744,9 @@ const Teacher: React.FC = () => {
                     შედიხართ საგანში: <strong style={{ color: '#1e3a8a', fontSize: '15px' }}>{activeSubjectName}</strong>
                   </span>
                 </div>
-                {lessonNum > 0 && (
+                {maxLessonsForSelectedDate > 1 && effectiveLessonNum > 0 && (
                   <span style={{ background: '#2563eb', color: '#ffffff', padding: '4px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: 800 }}>
-                    {lessonNum}-ე გაკვეთილი
+                    {effectiveLessonNum}-ე გაკვეთილი
                   </span>
                 )}
               </div>
@@ -1823,12 +1956,15 @@ const Teacher: React.FC = () => {
 
               return (
                 <>
-                  <div className="grade-entry-header">
+                  <div className={`grade-entry-header ${!isCommentOnly ? 'grade-entry-header-with-comment' : ''}`}>
                     <div>მოსწავლე</div>
                     <div style={{ textAlign: 'center' }}>დასწრება</div>
                     <div style={{ textAlign: 'center' }}>
                       {isCommentOnly ? "განმავითარებელი კომენტარი" : isProjectSubject ? "ჩათვლა (ჩთ / არ ჩთ)" : "ქულა (0-10)"}
                     </div>
+                    {!isCommentOnly && (
+                      <div style={{ textAlign: 'center' }}>კომენტარი</div>
+                    )}
                   </div>
 
                   <div className="grade-entry-list">
@@ -1923,6 +2059,32 @@ const Teacher: React.FC = () => {
                                 </select>
                               )}
                             </div>
+
+                            {!isCommentOnly && (
+                              <div className="grade-entry-comment-wrap">
+                                <input
+                                  type="text"
+                                  value={grades[student._id]?.comment ?? ""}
+                                  onChange={(e) => handleCommentChange(student._id, e.target.value)}
+                                  placeholder="კომენტარი (სურვილისამებრ)..."
+                                  disabled={!checked}
+                                  className="admin-input"
+                                  style={{
+                                    padding: '8px 12px',
+                                    fontSize: '13px',
+                                    opacity: checked ? 1 : 0.5,
+                                    width: '100%',
+                                    background: '#ffffff',
+                                    border: '1.5px solid #cbd5e1',
+                                    color: '#0f172a',
+                                    fontWeight: 600,
+                                    borderRadius: '8px',
+                                    boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)',
+                                    boxSizing: 'border-box'
+                                  }}
+                                />
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
@@ -2017,7 +2179,7 @@ const Teacher: React.FC = () => {
 
     const loginData = JSON.parse(localStorage.getItem("login") || "{}");
     const user_ID = loginData.user_ID;
-    const teacher = allTeachers.find((t: any) => t.user_ID === user_ID);
+    const teacher = allTeachers.find((t: any) => matchesTeacherUserId(t, user_ID));
 
     // Find ALL subjects this teacher teaches in this class
     const teacherSubjectsInClass = React.useMemo(() => {
@@ -2091,7 +2253,7 @@ const Teacher: React.FC = () => {
     if (classObj && Array.isArray(classObj.subjects)) {
       const loginData = JSON.parse(localStorage.getItem("login") || "{}");
       const user_ID = loginData.user_ID;
-      const teacher = allTeachers.find((t: any) => t.user_ID === user_ID);
+      const teacher = allTeachers.find((t: any) => matchesTeacherUserId(t, user_ID));
       if (teacher) {
         teacherSubjects = classObj.subjects.filter(
           (subj: any) => 
@@ -2412,6 +2574,7 @@ const Teacher: React.FC = () => {
 
     if (effectiveDayIdx !== null && teacherSchedule && teacherSchedule[effectiveDayIdx]) {
       const row = teacherSchedule[effectiveDayIdx];
+      const subjectOccurrenceCounter: Record<string, number> = {};
       row.forEach((slot: any, lessonSlotIdx: number) => {
         if (slot && (slot.className || slot.class_id)) {
           let classId = slot.class_id;
@@ -2419,8 +2582,13 @@ const Teacher: React.FC = () => {
             const foundCls = teachesClasses.find((c: any) => c.classname === slot.className);
             if (foundCls) classId = foundCls._id;
           }
+          const occurrenceKey = `${classId || slot.className}_${slot.subject_id || slot.subjectName || ""}`;
+          subjectOccurrenceCounter[occurrenceKey] = (subjectOccurrenceCounter[occurrenceKey] || 0) + 1;
+          const subjectLessonNum = subjectOccurrenceCounter[occurrenceKey];
+
           todayLessons.push({
             lessonNumber: lessonSlotIdx + 1,
+            subjectLessonNum: subjectLessonNum,
             lessonRoman: romanNumerals[lessonSlotIdx] || `${lessonSlotIdx + 1}`,
             className: slot.className,
             subjectName: slot.subjectName,
@@ -2568,7 +2736,7 @@ const Teacher: React.FC = () => {
                             const query = new URLSearchParams();
                             if (item.subjectId) query.set('subject_id', item.subjectId);
                             if (item.subjectName) query.set('subject_name', item.subjectName);
-                            query.set('lesson_num', String(item.lessonNumber));
+                            query.set('lesson_num', String(item.subjectLessonNum || 1));
                             navigate(`/teacher/teach/${item.classId}/grade?${query.toString()}`);
                           }
                         }}

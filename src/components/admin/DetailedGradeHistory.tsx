@@ -215,6 +215,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
     const [editPoint, setEditPoint] = useState<string>('10');
     const [editPointType, setEditPointType] = useState<number>(1);
     const [editSubjectId, setEditSubjectId] = useState<string>('');
+    const [editComment, setEditComment] = useState<string>('');
     const [savingGrade, setSavingGrade] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -435,7 +436,14 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
     }
 
     const { dateColumns, studentColumnGrades, columnPointTypes } = React.useMemo(() => {
-        // Group grades by student_id and date to resolve effective lesson numbers
+        const scoreGradePriority = (g: Grade): number => {
+            if (typeof g.point === 'number' && g.point >= 0) return 3;
+            if (g.point === -3 || (g.comment && String(g.comment).trim() !== '')) return 3;
+            if (g.point === -2 || g.checked === false) return 2;
+            return 1;
+        };
+
+        // Group grades by student_id and date, deduplicating records that share the same (subject_id, lesson_num)
         const studentDateGradesMap = new Map<string, Grade[]>();
         filteredGrades.forEach(g => {
             if (!g.date) return;
@@ -445,10 +453,24 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
             if (!studentDateGradesMap.has(key)) {
                 studentDateGradesMap.set(key, []);
             }
-            studentDateGradesMap.get(key)!.push(g);
+            const list = studentDateGradesMap.get(key)!;
+            const gLesson = g.lesson_num || 1;
+            const existingIdx = list.findIndex(
+                item => String(item.subject_id) === String(g.subject_id) && (item.lesson_num || 1) === gLesson
+            );
+            if (existingIdx === -1) {
+                list.push(g);
+            } else {
+                const prev = list[existingIdx];
+                const pNew = scoreGradePriority(g);
+                const pOld = scoreGradePriority(prev);
+                if (pNew > pOld || (pNew === pOld && String(g.time || '') >= String(prev.time || ''))) {
+                    list[existingIdx] = g;
+                }
+            }
         });
 
-        // Determine if any student has multiple grades on a given date
+        // Determine if any student has multiple distinct lessons on a given date
         const maxGradesPerStudentByDate = new Map<string, number>();
         studentDateGradesMap.forEach((gList, key) => {
             const dateStr = key.split('_')[1];
@@ -477,32 +499,11 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                     mapByDate.get(dateStr)!.add(1);
                 });
             } else {
-                const explicitLessonNums = gList.map(g => g.lesson_num).filter((n): n is number => Boolean(n && n > 0));
-                const hasDuplicates = new Set(explicitLessonNums).size < explicitLessonNums.length;
-                const hasMissing = explicitLessonNums.length < gList.length;
-
-                if (!hasDuplicates && !hasMissing) {
-                    gList.forEach(g => {
-                        const lNum = g.lesson_num!;
-                        gradeEffectiveLessonMap.set(g, lNum);
-                        mapByDate.get(dateStr)!.add(lNum);
-                    });
-                } else {
-                    // Assign sequential lesson numbers (1, 2, 3...) per grade so multiple checks/grades get separate columns
-                    const sortedList = [...gList].sort((a, b) => {
-                        if (a.lesson_num && b.lesson_num && a.lesson_num !== b.lesson_num) {
-                            return a.lesson_num - b.lesson_num;
-                        }
-                        if (a.time && b.time) return a.time.localeCompare(b.time);
-                        return (a._id || '').localeCompare(b._id || '');
-                    });
-
-                    sortedList.forEach((g, idx) => {
-                        const lNum = (g.lesson_num && g.lesson_num > 0 && !hasDuplicates) ? g.lesson_num : (idx + 1);
-                        gradeEffectiveLessonMap.set(g, lNum);
-                        mapByDate.get(dateStr)!.add(lNum);
-                    });
-                }
+                gList.forEach(g => {
+                    const lNum = g.lesson_num && g.lesson_num > 0 ? g.lesson_num : 1;
+                    gradeEffectiveLessonMap.set(g, lNum);
+                    mapByDate.get(dateStr)!.add(lNum);
+                });
             }
         });
 
@@ -533,22 +534,21 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
         const studentColGrades: { [studentId: string]: { [colKey: string]: Grade[] } } = {};
         const colPointTypes: { [colKey: string]: number } = {};
 
-        filteredGrades.forEach(g => {
-            if (!g.date) return;
-            if (!isDateInSemester(g.date, semesterFilter)) return;
+        studentDateGradesMap.forEach((gList) => {
+            gList.forEach(g => {
+                const lNum = gradeEffectiveLessonMap.get(g) || 1;
+                const colKey = `${g.date}_L${lNum}`;
 
-            const lNum = gradeEffectiveLessonMap.get(g) || 1;
-            const colKey = `${g.date}_L${lNum}`;
+                if (!studentColGrades[g.student_id]) studentColGrades[g.student_id] = {};
+                if (!studentColGrades[g.student_id][colKey]) studentColGrades[g.student_id][colKey] = [];
+                studentColGrades[g.student_id][colKey].push(g);
 
-            if (!studentColGrades[g.student_id]) studentColGrades[g.student_id] = {};
-            if (!studentColGrades[g.student_id][colKey]) studentColGrades[g.student_id][colKey] = [];
-            studentColGrades[g.student_id][colKey].push(g);
-
-            if (g.pointType === 3) {
-                colPointTypes[colKey] = 3;
-            } else if (g.pointType === 1 && colPointTypes[colKey] !== 3) {
-                colPointTypes[colKey] = 1;
-            }
+                if (g.pointType === 3) {
+                    colPointTypes[colKey] = 3;
+                } else if (g.pointType === 1 && colPointTypes[colKey] !== 3) {
+                    colPointTypes[colKey] = 1;
+                }
+            });
         });
 
         return {
@@ -600,6 +600,7 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
         const subjId = grade?.subject_id || defaultSubj;
         setEditSubjectId(subjId);
         setEditPointType(grade?.pointType || 1);
+        setEditComment(grade?.comment || '');
 
         if (!grade) {
             setIsAttending(true);
@@ -649,6 +650,8 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                 checkedVal = true;
             }
 
+            const trimmedComment = isAttending ? editComment.trim() : '';
+
             const payload: any = {
                 student_id: selectedCell.student._id,
                 subject_id: editSubjectId,
@@ -657,6 +660,8 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                 point: pointVal,
                 pointType: editPointType,
                 checked: checkedVal,
+                comment: trimmedComment,
+                is_formative: pointVal === -1 && isAttending && trimmedComment !== '',
                 lesson_num: selectedCell.lessonNum || selectedCell.targetGrade?.lesson_num || 1,
                 isAdmin: Boolean(isAdmin)
             };
@@ -1309,11 +1314,13 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                                             return (
                                                                 <div
                                                                     key={col.key}
+                                                                    onClick={() => openEditModalForGrade(student, col.date, primaryGrade, col.lessonNum)}
+                                                                    title={primaryGrade ? `დააჭირეთ ჩასასწორებლად (${col.label})` : `დააჭირეთ ნიშნის დასამატებლად (${col.label})`}
                                                                     style={{
                                                                         background: bgPill,
                                                                         borderRadius: '12px',
                                                                         padding: '10px 12px',
-                                                                        cursor: 'default',
+                                                                        cursor: 'pointer',
                                                                         display: 'flex',
                                                                         flexDirection: 'column',
                                                                         justifyContent: 'space-between',
@@ -1587,25 +1594,32 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                         right: 0,
                         bottom: 0,
                         width: '100vw',
-                        height: '100vh',
+                        height: '100dvh',
                         background: 'rgba(15, 23, 42, 0.65)',
                         backdropFilter: 'blur(8px)',
                         zIndex: 999999,
                         display: 'flex',
-                        alignItems: 'center',
+                        alignItems: isMobileScreen ? 'flex-start' : 'center',
                         justifyContent: 'center',
-                        padding: '20px'
+                        padding: isMobileScreen ? '12px' : '20px',
+                        overflowY: 'auto',
+                        WebkitOverflowScrolling: 'touch',
+                        boxSizing: 'border-box'
                     }}>
                         <div style={{
                             background: '#ffffff',
                             border: '1px solid #e2e8f0',
-                            borderRadius: '24px',
-                            padding: '28px',
+                            borderRadius: isMobileScreen ? '18px' : '24px',
+                            padding: isMobileScreen ? '18px 16px' : '28px',
                             width: '100%',
                             maxWidth: '480px',
+                            maxHeight: isMobileScreen ? 'calc(100dvh - 24px)' : '90vh',
+                            overflowY: 'auto',
+                            WebkitOverflowScrolling: 'touch',
                             boxShadow: '0 25px 60px rgba(0, 0, 0, 0.2)',
                             color: '#0f172a',
-                            margin: 'auto'
+                            margin: 'auto',
+                            boxSizing: 'border-box'
                         }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
                                 <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#2e1065' }}>
@@ -1881,6 +1895,33 @@ const DetailedGradeHistory: React.FC<DetailedGradeHistoryProps> = ({
                                         <option value={3}>🔴 შემაჯამებელი (წითელი)</option>
                                     </select>
                                 </div>
+
+                                {isAttending && (
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '8px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                            კომენტარი (სურვილისამებრ):
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={editComment}
+                                            disabled={!canUserEditDate}
+                                            onChange={(e) => setEditComment(e.target.value)}
+                                            placeholder="დაწერეთ კომენტარი..."
+                                            style={{
+                                                width: '100%',
+                                                padding: '10px 14px',
+                                                borderRadius: '10px',
+                                                border: '1px solid #cbd5e1',
+                                                background: '#ffffff',
+                                                color: '#0f172a',
+                                                fontSize: '14px',
+                                                fontWeight: 600,
+                                                boxSizing: 'border-box',
+                                                opacity: canUserEditDate ? 1 : 0.6
+                                            }}
+                                        />
+                                    </div>
+                                )}
 
                                 <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                                     <button
